@@ -3,6 +3,7 @@ import kabam.rotmg.appengine.api.AppEngineClient;
 import kabam.rotmg.core.StaticInjectorContext;
 import flash.display.Bitmap;
 import flash.events.Event;
+import kabam.rotmg.account.core.Account;
 
 public class BannerRetrievalSystem {
 
@@ -207,22 +208,22 @@ public class BannerRetrievalSystem {
      * You'll need to adapt this to your game's authentication system
      */
     private static function getAuthenticationData(player:* = null):Object {
-        // TODO: Adapt this to your actual authentication system
         try {
-            if (player) {
+            // Get the account from the same place GameServerConnection uses
+            var account:Account = StaticInjectorContext.getInjector().getInstance(Account);
+            if (account) {
                 return {
-                    guid: player.accountId_ || player.guid_ || "",
-                    password: player.password_ || player.token_ || ""
+                    guid: account.getUserId(),
+                    password: account.getPassword()
                 };
             }
         } catch (error:Error) {
             trace("BannerRetrievalSystem: Error getting auth data - " + error.message);
         }
 
-        // Fallback - you might want to get this from a global auth manager
         return {
-            guid: "", // Get from your game's auth system
-            password: "" // Get from your game's auth system
+            guid: "",
+            password: ""
         };
     }
 
@@ -299,5 +300,9 @@ public class BannerRetrievalSystem {
     private static function clearTimeout(timerId:int):void {
         // Placeholder for timeout clearing
     }
+
+
+
+
 }
 }

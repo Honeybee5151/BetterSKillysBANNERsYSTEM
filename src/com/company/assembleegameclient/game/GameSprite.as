@@ -115,7 +115,8 @@ public class GameSprite extends Sprite
       this.textBox_.addEventListener(MouseEvent.MOUSE_DOWN,this.onChatDown);
       this.textBox_.addEventListener(MouseEvent.MOUSE_UP,this.onChatUp);
       this.idleWatcher_ = new IdleWatcher();
-      //815602
+      //*815602
+
 	AutonomousBannerSystem.initialize(this.stage);
    }
 public function bannerSystemAdd():void {
@@ -129,6 +130,9 @@ public function bannerSystemAdd():void {
 
       addChild(bannerManager);
       bannerManager.bannerSystemAdd();
+   bannerManager.createRotMGBannerInWorld(1, 100, 100);
+   trace("GameSprite: Testing banner retrieval for guild 1");
+
 
       // Listen for when the banner system is closed
       bannerManager.addEventListener("bannerSystemClosed", onBannerSystemClosed);
@@ -150,6 +154,8 @@ public function bannerSystemAdd():void {
       }
       MapUserInput.bannerSystemChecker = false;
    }
+//*
+
    public function addBossBar():void
    {
       this.bossHealthBar = new BossHealthBar();

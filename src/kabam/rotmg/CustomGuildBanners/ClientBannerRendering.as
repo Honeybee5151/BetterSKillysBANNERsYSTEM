@@ -174,6 +174,24 @@ public class ClientBannerRendering {
 
         trace("ClientBannerRendering: Banner cache cleared");
     }
+    public static function createSmallBannerBitmap(colors:Array):BitmapData {
+        // Create 10x16 bitmap (half size)
+        var width:int = 10;  // GRID_COLS / 2
+        var height:int = 16; // GRID_ROWS / 2
 
+        var bitmapData:BitmapData = new BitmapData(width, height, true, 0x00000000);
+
+        // Sample every other pixel to downscale
+        for (var row:int = 0; row < height; row++) {
+            for (var col:int = 0; col < width; col++) {
+                var sourceRow:int = row * 2;
+                var sourceCol:int = col * 2;
+                var color:uint = colors[sourceRow][sourceCol];
+                bitmapData.setPixel32(col, row, 0xFF000000 | color);
+            }
+        }
+
+        return bitmapData;
+    }
 }
 }

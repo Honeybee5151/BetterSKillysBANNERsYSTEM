@@ -1,6 +1,9 @@
 package kabam.rotmg.CustomGuildBanners {
+import flash.display.Bitmap;
+import flash.display.BitmapData;
 import flash.display.Sprite;
 import flash.events.Event;
+import flash.geom.Matrix;
 import flash.utils.getTimer;
 import flash.utils.setTimeout;
 import com.company.assembleegameclient.game.MapUserInput;
@@ -337,6 +340,35 @@ public class BannerManager extends Sprite {
     private function getCurrentPlayer():* {
         // Replace this with however your manager accesses the current player
         return gameMap ? gameMap.player_ : null; // or however you get the player reference
+    }
+    /**
+     * Create a banner object instead of just displaying the bitmap
+     * @param guildId Guild ID to get banner for
+     * @param x X position for the banner object
+     * @param y Y position for the banner object
+     * @param callback Optional callback when banner object is created
+     */
+
+    public function createRotMGBannerInWorld(guildId:int, x:Number, y:Number):void {
+        BannerRetrievalSystem.requestGuildBanner(guildId, function(bannerBitmap:Bitmap, receivedGuildId:int):void {
+            if (bannerBitmap) {
+                // Disable smoothing for crisp pixel art
+                bannerBitmap.smoothing = false;
+
+                // Scale up from base resolution (1x1 pixels → 6x6 pixels)
+                bannerBitmap.scaleX = 6; // 6x size instead of 2x2 then 3x
+                bannerBitmap.scaleY = 6;
+
+                bannerBitmap.x = Math.round(x);
+                bannerBitmap.y = Math.round(y);
+
+                if (gameMap) {
+                    gameMap.addChild(bannerBitmap);
+                }
+
+                trace("Created banner at world pos (" + bannerBitmap.x + "," + bannerBitmap.y + ")");
+            }
+        }, 1, getCurrentPlayer()); // ← Use pixelSize = 1 for base resolution
     }
 }
 }

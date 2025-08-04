@@ -159,5 +159,21 @@ public class ClientBannerRendering {
         }
         return bmp;
     }
+
+    public static function clearBannerCache():void {
+        for (var key:String in _bannerCache) {
+            var bitmapData:BitmapData = _bannerCache[key];
+            if (bitmapData) {
+                bitmapData.dispose(); // Free memory
+            }
+            delete _bannerCache[key];
+        }
+
+        // Clear the usage order array too
+        _cacheUsageOrder = [];
+
+        trace("ClientBannerRendering: Banner cache cleared");
+    }
+
 }
 }

@@ -282,5 +282,61 @@ public class BannerManager extends Sprite {
     public function updateMapReference(map:Map):void {
         this.gameMap = map;
     }
+    public function handleBannerNetworkResponse(response:Object, endpoint:String):void {
+        if (endpoint && endpoint.indexOf("getGuildBanner") >= 0) {
+            trace("Manager: Processing banner network response");
+            BannerRetrievalSystem.handleBannerResponse(response);
+        }
+    }
+    public function displayGuildBanner(guildId:int, container:*, x:Number = 0, y:Number = 0, size:int = 16):void {
+        BannerRetrievalSystem.displayBannerAt(guildId, container, x, y, size, getCurrentPlayer());
+    }
+    public function displayPlayerBanner(container:*, x:Number = 0, y:Number = 0, size:int = 24):void {
+        var player:* = getCurrentPlayer();
+        if (player) {
+            try {
+                var guildId:int = player.guildId_ || 0;
+                if (guildId > 0) {
+                    displayGuildBanner(guildId, container, x, y, size);
+                } else {
+                    trace("Manager: Player is not in a guild");
+                }
+            } catch (error:Error) {
+                trace("Manager: Error getting player guild ID - " + error.message);
+            }
+        }
+    }
+    public function displayMultipleGuildBanners(guildIds:Array, callback:Function, size:int = 16):void {
+        BannerRetrievalSystem.requestMultipleBanners(guildIds, callback, size, getCurrentPlayer());
+    }
+
+    /**
+     * Clean up banner systems
+     */
+    public function cleanupBannerSystems():void {
+        trace("Manager: Cleaning up banner systems...");
+        try {
+            BannerRetrievalSystem.cancelAllRequests();
+            ClientBannerRendering.clearBannerCache();
+        } catch (error:Error) {
+            trace("Manager: Error during banner cleanup - " + error.message);
+        }
+    }
+
+    /**
+     * Get banner system status for debugging
+     */
+    public function getBannerSystemStatus():Object {
+        return {
+            retrievalStatus: BannerRetrievalSystem.getStatus(),
+            cacheStatus: ClientBannerRendering.getCacheStats()
+        };
+    }
+
+// Helper method - adapt this to however your manager gets the current player
+    private function getCurrentPlayer():* {
+        // Replace this with however your manager accesses the current player
+        return gameMap ? gameMap.player_ : null; // or however you get the player reference
+    }
 }
 }

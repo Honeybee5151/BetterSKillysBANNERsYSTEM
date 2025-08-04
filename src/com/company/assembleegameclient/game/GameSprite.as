@@ -56,8 +56,12 @@ import kabam.rotmg.stage3D.Renderer;
 import kabam.rotmg.ui.UIUtils;
 import kabam.rotmg.ui.view.BossHealthBar;
 import kabam.rotmg.ui.view.HUDView;
-import kabam.rotmg.CustomGuildBanners.AutonomousBannerSystem;
+
 import org.osflash.signals.Signal;
+//815602
+import kabam.rotmg.CustomGuildBanners.BannerRetrievalSystem;
+import kabam.rotmg.CustomGuildBanners.ClientBannerRendering;
+import kabam.rotmg.CustomGuildBanners.AutonomousBannerSystem;
 
 public class GameSprite extends Sprite
 {
@@ -92,6 +96,7 @@ public class GameSprite extends Sprite
    public var arenaMenu:ArenaMenu;
    public var scaledLayer:Sprite;
    public var forceScaledLayer:Sprite;
+   //815602
    private var bannerManager:BannerManager;
 
 
@@ -110,6 +115,7 @@ public class GameSprite extends Sprite
       this.textBox_.addEventListener(MouseEvent.MOUSE_DOWN,this.onChatDown);
       this.textBox_.addEventListener(MouseEvent.MOUSE_UP,this.onChatUp);
       this.idleWatcher_ = new IdleWatcher();
+      //815602
 	AutonomousBannerSystem.initialize(this.stage);
    }
 public function bannerSystemAdd():void {
@@ -571,6 +577,7 @@ public function bannerSystemAdd():void {
             removeChild(this.gameStatistics_);
          }
          dispatchEvent(new Event(Event.COMPLETE));
+         //815602
      if (bannerManager) {
          bannerManager.bannerSystemRemove();
          if (contains(bannerManager)) {

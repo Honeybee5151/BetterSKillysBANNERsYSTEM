@@ -28,6 +28,7 @@ import com.gskinner.motion.GTween;
 
 import flash.display.Bitmap;
 import flash.display.BitmapData;
+import flash.display.Shape;
 import flash.display.Sprite;
 import flash.display.StageAlign;
 import flash.display.StageScaleMode;
@@ -40,10 +41,11 @@ import flash.system.System;
 import flash.utils.ByteArray;
 import flash.utils.getTimer;
 import flash.utils.setTimeout;
-import kabam.rotmg.CustomGuildBanners.BannerManager;
+
 
 import kabam.lib.loopedprocs.LoopedCallback;
 import kabam.lib.loopedprocs.LoopedProcess;
+
 import kabam.rotmg.constants.GeneralConstants;
 import kabam.rotmg.core.model.MapModel;
 import kabam.rotmg.core.model.PlayerModel;
@@ -59,6 +61,8 @@ import kabam.rotmg.ui.view.HUDView;
 
 import org.osflash.signals.Signal;
 //815602
+import kabam.rotmg.CustomGuildBanners.BulkBannerSystem;
+import kabam.rotmg.CustomGuildBanners.BannerManager;
 import kabam.rotmg.CustomGuildBanners.BannerRetrievalSystem;
 import kabam.rotmg.CustomGuildBanners.ClientBannerRendering;
 import kabam.rotmg.CustomGuildBanners.AutonomousBannerSystem;
@@ -127,14 +131,22 @@ public function bannerSystemAdd():void {
          // Update the map reference in case it changed
          bannerManager.updateMapReference(this.map);
       }
+   var guildId:int = 123; // The guild you want to show
+   var bannerShape:Shape = BulkBannerSystem.getBanner(guildId, 16);
 
+   if (bannerShape) {
+      bannerShape.x = 100; // Position where you want it
+      bannerShape.y = 50;
+      addChild(bannerShape); // Add to your display container
+   }
       addChild(bannerManager);
       bannerManager.bannerSystemAdd();
-   bannerManager.createRotMGBannerInWorld(1, 100, 100);
-   trace("GameSprite: Testing banner retrieval for guild 1");
+      testDisplayBanner()
 
 
-      // Listen for when the banner system is closed
+
+
+         // Listen for when the banner system is closed
       bannerManager.addEventListener("bannerSystemClosed", onBannerSystemClosed);
    }
 
@@ -554,6 +566,15 @@ public function bannerSystemAdd():void {
          stage.addEventListener(Event.RESIZE, this.onScreenResize);
          stage.dispatchEvent(new Event(Event.RESIZE));
          Parameters.DamageCounter = [];
+         //815602
+         BulkBannerSystem.syncBannersAtLogin(function(success:Boolean):void {
+            if (success) {
+               trace("All guild banners synced successfully!");
+               // Now you can use getBanner() for any guild
+            } else {
+               trace("Banner sync failed");
+            }
+         })
       }
    }
 
@@ -686,5 +707,23 @@ public function bannerSystemAdd():void {
          this.chatPlayerMenu = null;
       }
    }
+   //815602
+   public function testDisplayBanner():void {
+      trace("Testing banner display...");
+
+      // Get Guild 1's banner (which you know exists)
+      var bannerShape:Shape = BulkBannerSystem.getBanner(1, 6); // 4px per pixel for visibility
+
+      if (bannerShape) {
+         bannerShape.x = 100; // Position it somewhere visible
+         bannerShape.y = 100;
+         addChild(bannerShape); // Add to GameSprite
+
+         trace("SUCCESS: Banner displayed! Size: " + bannerShape.width + "x" + bannerShape.height);
+      } else {
+         trace("FAILED: No banner found for Guild 1");
+      }
+   }
+
 }
 }

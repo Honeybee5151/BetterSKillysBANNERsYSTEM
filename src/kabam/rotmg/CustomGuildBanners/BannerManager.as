@@ -1,13 +1,16 @@
 package kabam.rotmg.CustomGuildBanners {
 import flash.display.Bitmap;
 import flash.display.BitmapData;
+import flash.display.PixelSnapping;
 import flash.display.Sprite;
 import flash.events.Event;
 import flash.geom.Matrix;
 import flash.utils.getTimer;
 import flash.utils.setTimeout;
+
 import com.company.assembleegameclient.game.MapUserInput;
 import com.company.assembleegameclient.map.Map;
+
 import kabam.rotmg.CustomGuildBanners.AutonomousBannerSystem;
 import kabam.rotmg.CustomGuildBanners.BannerDrawSystem;
 import kabam.rotmg.CustomGuildBanners.ColorPicker;
@@ -65,7 +68,7 @@ public class BannerManager extends Sprite {
         if (stage) {
             stage.stageFocusRect = false;
         } else {
-            this.addEventListener(Event.ADDED_TO_STAGE, function(e:Event):void {
+            this.addEventListener(Event.ADDED_TO_STAGE, function (e:Event):void {
                 stage.stageFocusRect = false;
             });
         }
@@ -193,10 +196,17 @@ public class BannerManager extends Sprite {
             return; // Exit early - don't export
         }
 
+        // Auto-save current banner before exporting
+        bannerData = BDS.getBannerData();
+        BannerStorage.saveBanner(bannerData, "playerBanner");
+
         // Export banner to server
         if (gameMap && gameMap.player_) {
+            // Clear cache so updated banner will be fetched next time
+            ClientBannerRendering.clearBannerCache();
+
             AutonomousBannerSystem.sendBannerNow("playerBanner", gameMap.player_);
-            trace("Exporting banner to server...");
+            trace("Auto-saved, cleared cache, and exporting banner to server...");
 
             // Start simple cooldown
             startExportButtonCooldown();
@@ -213,7 +223,7 @@ public class BannerManager extends Sprite {
         exportButton.text = "Please wait...";
 
         // Simple timer to re-enable
-        setTimeout(function():void {
+        setTimeout(function ():void {
             if (exportButton) { // Check if button still exists
                 exportButton.enabled = true;
                 exportButton.text = exportButtonOriginalText;
@@ -285,15 +295,18 @@ public class BannerManager extends Sprite {
     public function updateMapReference(map:Map):void {
         this.gameMap = map;
     }
+
     public function handleBannerNetworkResponse(response:Object, endpoint:String):void {
         if (endpoint && endpoint.indexOf("getGuildBanner") >= 0) {
-            trace("Manager: Processing banner network response");
-            BannerRetrievalSystem.handleBannerResponse(response);
+            trace("Manager: Banner network response received (handled by queue system)");
+            // Don't call BannerRetrievalSystem.handleBannerResponse - queue handles it now
         }
     }
+
     public function displayGuildBanner(guildId:int, container:*, x:Number = 0, y:Number = 0, size:int = 16):void {
         BannerRetrievalSystem.displayBannerAt(guildId, container, x, y, size, getCurrentPlayer());
     }
+
     public function displayPlayerBanner(container:*, x:Number = 0, y:Number = 0, size:int = 24):void {
         var player:* = getCurrentPlayer();
         if (player) {
@@ -309,6 +322,7 @@ public class BannerManager extends Sprite {
             }
         }
     }
+
     public function displayMultipleGuildBanners(guildIds:Array, callback:Function, size:int = 16):void {
         BannerRetrievalSystem.requestMultipleBanners(guildIds, callback, size, getCurrentPlayer());
     }
@@ -341,6 +355,7 @@ public class BannerManager extends Sprite {
         // Replace this with however your manager accesses the current player
         return gameMap ? gameMap.player_ : null; // or however you get the player reference
     }
+
     /**
      * Create a banner object instead of just displaying the bitmap
      * @param guildId Guild ID to get banner for
@@ -350,15 +365,17 @@ public class BannerManager extends Sprite {
      */
 
     public function createRotMGBannerInWorld(guildId:int, x:Number, y:Number):void {
+        // Request the banner bitmap directly at pixelSize = 6 (or your desired scale)
         BannerRetrievalSystem.requestGuildBanner(guildId, function(bannerBitmap:Bitmap, receivedGuildId:int):void {
             if (bannerBitmap) {
-                // Disable smoothing for crisp pixel art
                 bannerBitmap.smoothing = false;
+                bannerBitmap.pixelSnapping = PixelSnapping.ALWAYS;
 
-                // Scale up from base resolution (1x1 pixels → 6x6 pixels)
-                bannerBitmap.scaleX = 6; // 6x size instead of 2x2 then 3x
-                bannerBitmap.scaleY = 6;
+                // Do NOT scale the bitmap instance
+                bannerBitmap.scaleX = 1;
+                bannerBitmap.scaleY = 1;
 
+                // Snap to integer pixel positions (no division needed since bitmap is already scaled)
                 bannerBitmap.x = Math.round(x);
                 bannerBitmap.y = Math.round(y);
 
@@ -368,7 +385,7 @@ public class BannerManager extends Sprite {
 
                 trace("Created banner at world pos (" + bannerBitmap.x + "," + bannerBitmap.y + ")");
             }
-        }, 1, getCurrentPlayer()); // ← Use pixelSize = 1 for base resolution
+        }, 6, getCurrentPlayer()); // pixelSize = 6 - generate scaled bitmap
     }
 }
 }

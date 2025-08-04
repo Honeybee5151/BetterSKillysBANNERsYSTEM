@@ -1,179 +1,238 @@
 package kabam.rotmg.CustomGuildBanners {
+import flash.display.Sprite;
+import flash.display.Shape;
+
 import kabam.rotmg.appengine.api.AppEngineClient;
 import kabam.rotmg.core.StaticInjectorContext;
+
 import flash.display.Bitmap;
 import flash.events.Event;
+import flash.utils.Timer;
+import flash.events.TimerEvent;
+
 import kabam.rotmg.account.core.Account;
 
 public class BannerRetrievalSystem {
 
-    // Track pending requests and their callbacks
+    // Request queue system
+    private static var _requestQueue:Array = [];
+    private static var _processingRequest:Boolean = false;
+    private static var _currentClient:AppEngineClient = null;
+
+    // Track pending requests for timeout handling
     private static var _pendingRequests:Object = {};
-    private static var _requestTimeouts:Object = {};
+    private static var _timers:Object = {};
     private static const REQUEST_TIMEOUT:int = 10000; // 10 seconds
 
     /**
      * Request a guild's banner from the server and render it
-     * @param guildId The guild ID to get the banner for
-     * @param callback Function to call when banner is loaded: function(bannerBitmap:Bitmap, guildId:int):void
-     * @param pixelSize Size to render the banner (default 16)
-     * @param player Player object for authentication
+     * This now uses a queue system to handle multiple requests properly
+     * Returns a vector Shape for perfect scaling
      */
     public static function requestGuildBanner(guildId:int, callback:Function, pixelSize:int = 16, player:* = null):void {
-        trace("BannerRetrievalSystem: Requesting banner for guild " + guildId);
+        trace("BannerRetrievalSystem: Queueing banner request for guild " + guildId);
 
         // Create unique request ID
         var requestId:String = "banner_" + guildId + "_" + new Date().time;
 
-        // Store request info
-        _pendingRequests[requestId] = {
+        // Create request object
+        var request:Object = {
+            requestId: requestId,
             guildId: guildId,
             callback: callback,
             pixelSize: pixelSize,
+            player: player,
             requestTime: new Date().time
         };
 
-        // Set timeout for request
-        setTimeout(function():void {
-            handleRequestTimeout(requestId);
+        // Add to queue
+        _requestQueue.push(request);
+
+        // Start processing if not already processing
+        if (!_processingRequest) {
+            processNextRequest();
+        }
+    }
+
+    /**
+     * Process the next request in the queue
+     */
+    private static function processNextRequest():void {
+        if (_requestQueue.length == 0) {
+            _processingRequest = false;
+            trace("BannerRetrievalSystem: Queue empty, stopping processing");
+            return;
+        }
+
+        _processingRequest = true;
+        var request:Object = _requestQueue.shift(); // Get first request
+
+        trace("BannerRetrievalSystem: Processing request " + request.requestId + " for guild " + request.guildId);
+
+        // Store request for timeout handling
+        _pendingRequests[request.requestId] = request;
+
+        // Set timeout
+        var timerId:int = setTimeout(function ():void {
+            handleRequestTimeout(request.requestId);
         }, REQUEST_TIMEOUT);
+        _timers[request.requestId] = timerId;
 
         // Get authentication info
-        var authData:Object = getAuthenticationData(player);
-        if (!authData.guid || !authData.password) {
-            trace("BannerRetrievalSystem: Warning - No authentication data available");
-            // You might want to handle this case differently
-        }
+        var authData:Object = getAuthenticationData(request.player);
 
         // Prepare request data
         var requestData:Object = {
             guid: authData.guid,
             password: authData.password,
-            guildId: guildId,
-            requestId: requestId // Include request ID for matching responses
+            guildId: request.guildId,
+            requestId: request.requestId
         };
 
         // Send request to server
         try {
-            var client:AppEngineClient = StaticInjectorContext.getInjector().getInstance(AppEngineClient);
-            client.sendRequest("/guild/getGuildBanner", requestData);
-            trace("BannerRetrievalSystem: Sent request " + requestId + " for guild " + guildId);
+            _currentClient = StaticInjectorContext.getInjector().getInstance(AppEngineClient);
+
+            // Set up callback BEFORE sending request
+            _currentClient.complete.addOnce(function (success:Boolean, data:String):void {
+                handleNetworkResponse(success, data, request.requestId);
+            });
+
+            _currentClient.sendRequest("/guild/getGuildBanner", requestData);
+            trace("BannerRetrievalSystem: Sent request " + request.requestId);
+
         } catch (error:Error) {
             trace("BannerRetrievalSystem: Error sending request - " + error.message);
-            cleanupRequest(requestId);
-            if (callback != null) {
-                callback(null, guildId); // Call callback with null to indicate failure
-            }
+            finishRequest(request.requestId, false, null);
         }
-        client.complete.addOnce(function(success:Boolean, data:String):void {
-            if (success && data) {
-                try {
-                    var response:Object = JSON.parse(data);
-                    handleBannerResponse(response);
-                } catch (error:Error) {
-                    trace("BannerRetrievalSystem: Error parsing response - " + error.message);
-                }
-            } else {
-                trace("BannerRetrievalSystem: Request failed for guild " + guildId);
-            }
-        });
+    }
 
+    /**
+     * Handle network response
+     */
+    private static function handleNetworkResponse(success:Boolean, data:String, expectedRequestId:String):void {
+        trace("BannerRetrievalSystem: Received network response for request " + expectedRequestId);
+
+        if (success && data) {
+            try {
+                var response:Object = JSON.parse(data);
+                handleBannerResponse(response, expectedRequestId);
+            } catch (error:Error) {
+                trace("BannerRetrievalSystem: Error parsing response - " + error.message);
+                finishRequest(expectedRequestId, false, null);
+            }
+        } else {
+            trace("BannerRetrievalSystem: Network request failed for " + expectedRequestId);
+            finishRequest(expectedRequestId, false, null);
+        }
     }
 
     /**
      * Handle server response and render the banner
-     * Call this from your network response handler
-     * @param response Server response object
      */
-    public static function handleBannerResponse(response:Object):void {
+    private static function handleBannerResponse(response:Object, expectedRequestId:String):void {
         try {
-            trace("BannerRetrievalSystem: Received response: " + JSON.stringify(response));
+            trace("BannerRetrievalSystem: Processing banner response");
 
             if (!response) {
                 trace("BannerRetrievalSystem: Empty response received");
+                finishRequest(expectedRequestId, false, null);
                 return;
             }
 
             var guildId:int = response.guildId || 0;
             var success:Boolean = response.success || false;
-            var requestId:String = response.requestId || "";
+            var requestId:String = response.requestId || expectedRequestId; // Fallback to expected ID
 
-            // Find matching request
-            var matchingRequest:Object = null;
-            var matchingRequestId:String = "";
-
-            // If we have a request ID, use it for exact matching
-            if (requestId && _pendingRequests[requestId]) {
-                matchingRequest = _pendingRequests[requestId];
-                matchingRequestId = requestId;
-            } else {
-                // Fallback: find by guild ID (for older implementations)
-                for (var reqId:String in _pendingRequests) {
-                    var req:Object = _pendingRequests[reqId];
-                    if (req.guildId == guildId) {
-                        matchingRequest = req;
-                        matchingRequestId = reqId;
-                        break;
-                    }
-                }
-            }
-
-            if (!matchingRequest) {
-                trace("BannerRetrievalSystem: No matching request found for guild " + guildId);
+            // Find the request
+            var request:Object = _pendingRequests[expectedRequestId];
+            if (!request) {
+                trace("BannerRetrievalSystem: No matching request found for " + expectedRequestId);
+                finishRequest(expectedRequestId, false, null);
                 return;
             }
 
             if (!success || !response.bannerData) {
                 trace("BannerRetrievalSystem: Server returned no banner data for guild " + guildId +
                         " - " + (response.message || "Unknown error"));
-
-                // Call callback with null to indicate no banner
-                if (matchingRequest.callback != null) {
-                    matchingRequest.callback(null, guildId);
-                }
-                cleanupRequest(matchingRequestId);
+                finishRequest(expectedRequestId, false, request);
                 return;
             }
 
-            // We have banner data - render it!
+            // We have banner data - render it as vector!
             var bannerData:String = response.bannerData;
-            trace("BannerRetrievalSystem: Rendering banner for guild " + guildId +
+            trace("BannerRetrievalSystem: Rendering vector banner for guild " + guildId +
                     " (data length: " + bannerData.length + ")");
 
-            // Use ClientBannerRendering to create the bitmap
-            var bannerBitmap:Bitmap = ClientBannerRendering.renderBannerFromHex(bannerData, matchingRequest.pixelSize);
+            // Use ClientBannerRendering to create the vector shape
+            var bannerShape:Shape = ClientBannerRendering.renderBannerFromHex(bannerData, request.pixelSize);
 
-            if (bannerBitmap) {
-                trace("BannerRetrievalSystem: Successfully rendered banner for guild " + guildId);
-
-                // Call the callback with the rendered bitmap
-                if (matchingRequest.callback != null) {
-                    matchingRequest.callback(bannerBitmap, guildId);
-                }
+            if (bannerShape) {
+                trace("BannerRetrievalSystem: Successfully rendered vector banner for guild " + guildId);
+                finishRequest(expectedRequestId, true, request, bannerShape);
             } else {
-                trace("BannerRetrievalSystem: Failed to render banner for guild " + guildId);
-                if (matchingRequest.callback != null) {
-                    matchingRequest.callback(null, guildId);
-                }
+                trace("BannerRetrievalSystem: Failed to render vector banner for guild " + guildId);
+                finishRequest(expectedRequestId, false, request);
             }
-
-            // Clean up the request
-            cleanupRequest(matchingRequestId);
 
         } catch (error:Error) {
             trace("BannerRetrievalSystem: Error handling response - " + error.message);
+            finishRequest(expectedRequestId, false, null);
         }
     }
 
     /**
-     * Request multiple guild banners (for guild lists)
-     * @param guildIds Array of guild IDs to fetch
-     * @param callback Called for each banner: function(bannerBitmap:Bitmap, guildId:int):void
-     * @param pixelSize Size to render banners
-     * @param player Player object for authentication
+     * Finish processing a request and start the next one
+     * Now handles vector Shape objects instead of Bitmap
+     */
+    private static function finishRequest(requestId:String, success:Boolean, request:Object, bannerShape:Shape = null):void {
+        trace("BannerRetrievalSystem: Finishing request " + requestId + " (success: " + success + ")");
+
+        // Call the callback if we have the request
+        if (request && request.callback != null) {
+            try {
+                request.callback(bannerShape, request.guildId);
+            } catch (error:Error) {
+                trace("BannerRetrievalSystem: Error in callback - " + error.message);
+            }
+        }
+
+        // Clean up
+        cleanupRequest(requestId);
+
+        // Process next request
+        processNextRequest();
+    }
+
+    /**
+     * Handle request timeout
+     */
+    private static function handleRequestTimeout(requestId:String):void {
+        if (_pendingRequests[requestId]) {
+            var request:Object = _pendingRequests[requestId];
+            trace("BannerRetrievalSystem: Request timeout for guild " + request.guildId);
+            finishRequest(requestId, false, request);
+        }
+    }
+
+    /**
+     * Clean up a request and its timeout
+     */
+    private static function cleanupRequest(requestId:String):void {
+        if (_pendingRequests[requestId]) {
+            delete _pendingRequests[requestId];
+        }
+        if (_timers[requestId]) {
+            clearTimeout(_timers[requestId]);
+            delete _timers[requestId];
+        }
+    }
+
+    /**
+     * Request multiple guild banners (they'll be queued and processed one by one)
      */
     public static function requestMultipleBanners(guildIds:Array, callback:Function, pixelSize:int = 16, player:* = null):void {
-        trace("BannerRetrievalSystem: Requesting " + guildIds.length + " guild banners");
+        trace("BannerRetrievalSystem: Queueing " + guildIds.length + " guild banners");
 
         for (var i:int = 0; i < guildIds.length; i++) {
             var guildId:int = guildIds[i];
@@ -182,34 +241,91 @@ public class BannerRetrievalSystem {
     }
 
     /**
-     * Convenience method: Request banner and display it at specific coordinates
-     * @param guildId Guild ID to fetch
-     * @param container Display object to add banner to
-     * @param x X position
-     * @param y Y position
-     * @param pixelSize Banner size
-     * @param player Player for authentication
+     * Cancel all pending requests
+     */
+    public static function cancelAllRequests():void {
+        var cancelCount:int = _requestQueue.length;
+
+        // Clear queue
+        _requestQueue = [];
+
+        // Clean up any pending request
+        for (var requestId:String in _pendingRequests) {
+            cleanupRequest(requestId);
+        }
+
+        _processingRequest = false;
+        _currentClient = null;
+
+        if (cancelCount > 0) {
+            trace("BannerRetrievalSystem: Cancelled " + cancelCount + " queued requests");
+        }
+    }
+
+    /**
+     * Get system status
+     */
+    public static function getStatus():Object {
+        var pendingCount:int = 0;
+        for (var requestId:String in _pendingRequests) {
+            pendingCount++;
+        }
+
+        return {
+            queuedRequests: _requestQueue.length,
+            pendingRequests: pendingCount,
+            processing: _processingRequest,
+            cacheStats: ClientBannerRendering.getCacheStats()
+        };
+    }
+
+    // === CONVENIENCE METHODS - Updated for Vector Support ===
+
+    /**
+     * Display vector banner at specified position
      */
     public static function displayBannerAt(guildId:int, container:*, x:Number, y:Number, pixelSize:int = 16, player:* = null):void {
-        requestGuildBanner(guildId, function(bannerBitmap:Bitmap, receivedGuildId:int):void {
-            if (bannerBitmap && container && container.stage) {
-                bannerBitmap.x = x;
-                bannerBitmap.y = y;
-                container.addChild(bannerBitmap);
-                trace("BannerRetrievalSystem: Displayed banner for guild " + receivedGuildId + " at (" + x + "," + y + ")");
-            } else if (!bannerBitmap) {
+        requestGuildBanner(guildId, function (bannerShape:Shape, receivedGuildId:int):void {
+            if (bannerShape && container && container.stage) {
+                bannerShape.x = x;
+                bannerShape.y = y;
+                container.addChild(bannerShape);
+                trace("BannerRetrievalSystem: Displayed vector banner for guild " + receivedGuildId + " at (" + x + "," + y + ")");
+            } else if (!bannerShape) {
                 trace("BannerRetrievalSystem: No banner available for guild " + receivedGuildId);
             }
         }, pixelSize, player);
     }
 
     /**
-     * Get authentication data from player object
-     * You'll need to adapt this to your game's authentication system
+     * Display scalable vector banner (new method)
      */
+    public static function displayScalableBannerAt(guildId:int, container:*, x:Number, y:Number, scale:Number = 1.0, pixelSize:int = 16, player:* = null):void {
+        requestGuildBanner(guildId, function (bannerShape:Shape, receivedGuildId:int):void {
+            if (bannerShape && container && container.stage) {
+                bannerShape.x = x;
+                bannerShape.y = y;
+                bannerShape.scaleX = scale;
+                bannerShape.scaleY = scale;
+                container.addChild(bannerShape);
+                trace("BannerRetrievalSystem: Displayed scaled vector banner for guild " + receivedGuildId + " at (" + x + "," + y + ") scale=" + scale);
+            } else if (!bannerShape) {
+                trace("BannerRetrievalSystem: No banner available for guild " + receivedGuildId);
+            }
+        }, pixelSize, player);
+    }
+
+    /**
+     * Get banner as Bitmap if needed for legacy compatibility
+     */
+
+
+    /**
+     * Display banner with automatic format detection
+     */
+
     private static function getAuthenticationData(player:* = null):Object {
         try {
-            // Get the account from the same place GameServerConnection uses
             var account:Account = StaticInjectorContext.getInjector().getInstance(Account);
             if (account) {
                 return {
@@ -227,82 +343,23 @@ public class BannerRetrievalSystem {
         };
     }
 
-    /**
-     * Handle request timeout
-     */
-    private static function handleRequestTimeout(requestId:String):void {
-        if (_pendingRequests[requestId]) {
-            var request:Object = _pendingRequests[requestId];
-            trace("BannerRetrievalSystem: Request timeout for guild " + request.guildId);
+    // === TIMER FUNCTIONS ===
 
-            // Call callback with null to indicate timeout
-            if (request.callback != null) {
-                request.callback(null, request.guildId);
-            }
-
-            cleanupRequest(requestId);
-        }
-    }
-
-    /**
-     * Clean up a request and its timeout
-     */
-    private static function cleanupRequest(requestId:String):void {
-        if (_pendingRequests[requestId]) {
-            delete _pendingRequests[requestId];
-        }
-        if (_requestTimeouts[requestId]) {
-            clearTimeout(_requestTimeouts[requestId]);
-            delete _requestTimeouts[requestId];
-        }
-    }
-
-    /**
-     * Cancel all pending requests (useful when changing screens)
-     */
-    public static function cancelAllRequests():void {
-        var cancelCount:int = 0;
-        for (var requestId:String in _pendingRequests) {
-            cleanupRequest(requestId);
-            cancelCount++;
-        }
-
-        if (cancelCount > 0) {
-            trace("BannerRetrievalSystem: Cancelled " + cancelCount + " pending requests");
-        }
-    }
-
-    /**
-     * Get system status
-     */
-    public static function getStatus():Object {
-        var pendingCount:int = 0;
-        for (var requestId:String in _pendingRequests) {
-            pendingCount++;
-        }
-
-        return {
-            pendingRequests: pendingCount,
-            cacheStats: ClientBannerRendering.getCacheStats()
-        };
-    }
-
-    // Simple setTimeout implementation for ActionScript
     private static function setTimeout(callback:Function, delay:int):int {
-        // This is a simplified version - you might want to use Timer class for more accuracy
         var timerId:int = Math.random() * 100000;
+        var timer:Timer = new Timer(delay, 1);
 
-        // In a real implementation, you'd use Timer class here
-        // For now, this is just a placeholder
+        timer.addEventListener(TimerEvent.TIMER_COMPLETE, function (e:TimerEvent):void {
+            callback();
+            timer.removeEventListener(TimerEvent.TIMER_COMPLETE, arguments.callee);
+        });
+
+        timer.start();
         return timerId;
     }
 
     private static function clearTimeout(timerId:int):void {
-        // Placeholder for timeout clearing
+        // Timer cleanup is handled in the event listener
     }
-
-
-
-
 }
 }

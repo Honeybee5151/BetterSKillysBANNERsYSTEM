@@ -210,7 +210,7 @@ public class ColorPicker extends Sprite {
 
         if (distance <= WHEEL_RADIUS) {
             currentHue = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
-            currentSaturation = Math.min(distance / WHEEL_RADIUS, 1);
+            currentSaturation = Math.min(1 - (distance / WHEEL_RADIUS), 1)
 
             updateSelectedColor();
             if (!isUserEditingHex) {

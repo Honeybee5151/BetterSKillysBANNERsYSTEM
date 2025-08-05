@@ -107,6 +107,38 @@
       <ShadowSize>0</ShadowSize>
       <BlocksSight/>
    </Object>
+   <Object id="BannerObject" type="0x3787">
+      <Class>GameObject</Class>
+      <Texture>
+         <File>archbishopObjects64x64</File>
+         <Index>66</Index>
+      </Texture>
+      <Static/>
+      <Size>100</Size>
+      <ShadowSize>0</ShadowSize>
+   </Object>
+   <Object type="0x3788" id="BannerItem">
+      <DisplayId>Guild Banner</DisplayId>
+      <Description>A guild banner that can be placed to mark territory. Right-click to place.</Description>
+      <ExtraTooltipData>
+         <EffectInfo description="Places a guild banner" name="Guild Territory Marker"/>
+      </ExtraTooltipData>
+      <Class>Equipment</Class>
+      <Item/>
+      <Texture>
+         <File>archbishopObjects8x8</File>
+         <Index>68</Index>
+      </Texture>
+      <SlotType>10</SlotType>
+      <Consumable/>
+      <BagType>2</BagType>
+
+      <!-- Use the object ID directly like the example -->
+      <Activate objectId="BannerObject">Pet</Activate>
+
+      <Usable/>
+      <feedPower>0</feedPower>
+   </Object>
    <Object id="Light Shaft 0" type="0x1a58">
       <Class>GameObject</Class>
       <Model>Light Shaft</Model>

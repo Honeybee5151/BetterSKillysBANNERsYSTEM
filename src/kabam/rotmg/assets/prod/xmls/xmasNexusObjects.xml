@@ -5291,7 +5291,7 @@
       </Texture>
       <SlotType>10</SlotType>
       <Consumable/>
-      
+
       <BagType>2</BagType>
       <Activate id="XN S spwnr">Create</Activate>
       <feedPower>0</feedPower>

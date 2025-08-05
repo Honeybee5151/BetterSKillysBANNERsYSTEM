@@ -11,18 +11,38 @@ import kabam.rotmg.core.StaticInjectorContext;
 import kabam.rotmg.messaging.impl.GameServerConnection;
 
 /**
- * Simple banner activation class
- * Just sends placement request and handles basic rendering
+ * Integrated banner activation system that works with entity system
+ * Handles both HTTP requests (legacy) and entity mapping (new approach)
  */
 public class BannerActivate {
 
     // Track placed banners by instance ID
     private static var _placedBanners:Dictionary = new Dictionary();
 
+    // NEW: Map entity IDs to banner appearance data
+    private static var _bannerInstanceMap:Dictionary = new Dictionary();
+
+    private static var _instance:BannerActivate;
+
+    private static var _pendingBanners:Array = [];
+
+    public function BannerActivate() {
+        _instance = this;
+        trace("BannerActivate: Integrated system initialized");
+    }
+
+    public static function getInstance():BannerActivate {
+        if (!_instance) {
+            _instance = new BannerActivate();
+
+        }
+        return _instance;
+    }
+
     // ====== ITEM ACTIVATION (when player uses banner item) ======
 
     /**
-     * Called when banner item is used - SENDS REQUEST TO SERVER
+     * Called when banner item is used - STILL SENDS HTTP REQUEST FOR NOW
      */
     public function activate(player:Player, item:*):Boolean {
         try {
@@ -41,23 +61,15 @@ public class BannerActivate {
                 return false;
             }
 
-            // Use player's current position
-            var targetX:Number = player.x_;
-            var targetY:Number = player.y_;
-
             // Basic validation
             if (!canPlaceBanner(player)) {
                 return false;
             }
 
-            // Send banner placement request to server
-            if (sendBannerPlacementRequest(targetX, targetY, guildId)) {
-                showMessage(player, "Placing guild banner...");
-                return true; // Item will be consumed
-            } else {
-                showMessage(player, "Failed to place banner!");
-                return false;
-            }
+            // The C# server will handle the actual entity creation
+            // and send us a BANNER_ACTIVATE notification
+            showMessage(player, "Placing guild banner...");
+            return true; // Item will be consumed, server handles the rest
 
         } catch (error:Error) {
             trace("BannerActivate: Error - " + error.message);
@@ -65,47 +77,216 @@ public class BannerActivate {
         }
     }
 
+    // ====== NEW: ENTITY MAPPING SYSTEM ======
+
     /**
-     * Send placement request to server
+     * Called when server sends BANNER_ACTIVATE notification
+     * Maps entity ID to guild appearance data and DIRECTLY modifies the entity
      */
-    private function sendBannerPlacementRequest(x:Number, y:Number, guildId:int):Boolean {
+    public static function mapEntityToBanner(entityId:int, guildId:int, instanceId:String):void {
         try {
-            var authData:Object = getAuthenticationData();
-            var requestData:Object = {
-                guid: authData.guid,
-                password: authData.password,
-                worldX: x,
-                worldY: y,
-                guildId: guildId
+            trace("BannerActivate: Mapping entity " + entityId + " to guild " + guildId + " banner");
+
+            var bannerData:Object = {
+                entityId: entityId,
+                guildId: guildId,
+                instanceId: instanceId,
+                timestamp: new Date().time
             };
 
-            var client:AppEngineClient = StaticInjectorContext.getInjector().getInstance(AppEngineClient);
+            // Store mapping: entity ID -> guild appearance
+            _bannerInstanceMap[entityId.toString()] = bannerData;
 
-            client.complete.addOnce(function (success:Boolean, data:String):void {
-                handlePlacementResponse(success, data);
-            });
+            // DIRECTLY MODIFY THE ENTITY'S APPEARANCE RIGHT NOW
+            applyGuildBannerToEntity(entityId, guildId);
 
-            client.sendRequest("/guild/placeBanner", requestData);
-
-            trace("BannerActivate: Sent HTTP placement request for guild " + guildId + " at (" + x + "," + y + ")");
-            return true;
+            trace("BannerActivate: Entity " + entityId + " mapped to guild " + guildId + " banner and appearance applied");
 
         } catch (error:Error) {
-            trace("BannerActivate: Failed to send request - " + error.message);
-            return false;
+            trace("BannerActivate: Error mapping entity to banner - " + error.message);
         }
     }
 
-    // ====== CLIENT-SIDE RENDERING (when server responds) ======
+    /**
+     * Directly apply guild banner appearance to an existing entity
+     */
+    public static function applyGuildBannerToEntity(entityId:int, guildId:int):void {
+        trace("!!! applyGuildBannerToEntity CALLED with entityId=" + entityId + " guildId=" + guildId);
+            var gameEntity:* = findEntityInWorld(entityId);
+            if (!gameEntity) {
+                trace("Entity not found, queuing for later: " + entityId);
+                _pendingBanners.push({entityId: entityId, guildId: guildId});
+                return;
+            }
+        try {
+            trace("BannerActivate: Applying guild " + guildId + " banner to entity " + entityId);
+
+            // Get guild banner hex data
+            var guildHexData:String = BulkBannerSystem.getHexData(guildId);
+            if (!guildHexData) {
+                trace("BannerActivate: No hex data for guild " + guildId + ", using default");
+                guildHexData = getDefaultBannerHex();
+            }
+
+            // Find the entity in the game world (you'll need to adapt this to your game's entity system)
+
+            // Get the entity's current bitmap/texture
+            var entityBitmap:Bitmap = getEntityBitmap(gameEntity);
+            if (!entityBitmap || !entityBitmap.bitmapData) {
+                trace("BannerActivate: Could not get bitmap for entity " + entityId);
+                return;
+            }
+
+            // Apply guild colors directly to the entity's bitmap using setPixel
+            applyGuildColorsWithSetPixel(entityBitmap.bitmapData, guildHexData);
+
+            trace("BannerActivate: Successfully applied guild colors to entity " + entityId);
+
+        } catch (error:Error) {
+            trace("BannerActivate: Error applying banner to entity - " + error.message);
+        }
+    }
 
     /**
-     * Handle server response - SERVER PLACED BANNER, NOW RENDER IT
+     * Find entity in the game world
+     */
+    private static function findEntityInWorld(entityId:int):* {
+        var keys:Array = [];
+        for (var k:* in GameServerConnection.instance.gs_.map.goDict_) {
+            keys.push(k);
+        }
+        trace("Keys in goDict_: " + keys.join(", "));
+        try {
+            return GameServerConnection.instance.gs_.map.goDict_[entityId];
+
+        } catch (error:Error) {
+            trace("BannerActivate: Error finding entity in world - " + error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Get entity's bitmap for pixel modification - TESTING RUNTIME
+     */
+    private static function getEntityBitmap(gameEntity:*):Bitmap {
+        try {
+            trace("BannerActivate: Testing entity bitmap access for entity: " + gameEntity);
+
+            // Test each possibility and see which ones work
+            try {
+                if (gameEntity.bitmap_) {
+                    trace("BannerActivate: SUCCESS - gameEntity.bitmap_ exists: " + gameEntity.bitmap_);
+                    return gameEntity.bitmap_;
+                }
+            } catch (e:Error) { trace("BannerActivate: gameEntity.bitmap_ failed: " + e.message); }
+
+            try {
+                if (gameEntity.bitmapData_) {
+                    trace("BannerActivate: SUCCESS - gameEntity.bitmapData_ exists: " + gameEntity.bitmapData_);
+                    // If it's BitmapData, create a Bitmap from it
+                    return new Bitmap(gameEntity.bitmapData_);
+                }
+            } catch (e:Error) { trace("BannerActivate: gameEntity.bitmapData_ failed: " + e.message); }
+
+            try {
+                if (gameEntity.texture_) {
+                    trace("BannerActivate: SUCCESS - gameEntity.texture_ exists: " + gameEntity.texture_);
+                    return gameEntity.texture_;
+                }
+            } catch (e:Error) { trace("BannerActivate: gameEntity.texture_ failed: " + e.message); }
+
+            try {
+                if (gameEntity.sprite_) {
+                    trace("BannerActivate: SUCCESS - gameEntity.sprite_ exists: " + gameEntity.sprite_);
+                    return gameEntity.sprite_;
+                }
+            } catch (e:Error) { trace("BannerActivate: gameEntity.sprite_ failed: " + e.message); }
+
+            try {
+                var bitmap = gameEntity.getBitmap();
+                if (bitmap) {
+                    trace("BannerActivate: SUCCESS - gameEntity.getBitmap() returned: " + bitmap);
+                    return bitmap;
+                }
+            } catch (e:Error) { trace("BannerActivate: gameEntity.getBitmap() failed: " + e.message); }
+
+            try {
+                var texture = gameEntity.getTexture();
+                if (texture) {
+                    trace("BannerActivate: SUCCESS - gameEntity.getTexture() returned: " + texture);
+                    return texture;
+                }
+            } catch (e:Error) { trace("BannerActivate: gameEntity.getTexture() failed: " + e.message); }
+
+            trace("BannerActivate: No bitmap access method worked for entity");
+            return null;
+
+        } catch (error:Error) {
+            trace("BannerActivate: Error getting entity bitmap - " + error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Called by entity rendering system to get banner appearance
+     * Returns banner shape for specific entity ID
+     */
+    public static function getBannerForEntity(entityId:int):* {
+        try {
+            var entityKey:String = entityId.toString();
+            if (_bannerInstanceMap[entityKey]) {
+                var bannerData:Object = _bannerInstanceMap[entityKey];
+                var guildId:int = bannerData.guildId;
+
+                trace("BannerActivate: Entity " + entityId + " should render as guild " + guildId + " banner");
+
+                // Use BannerRetrievalSystem to get the actual guild banner
+                BannerRetrievalSystem.requestGuildBanner(guildId, function (bannerShape:*, receivedGuildId:int):void {
+                    if (bannerShape) {
+                        trace("BannerActivate: Retrieved banner shape for entity " + entityId);
+                        // The entity system will handle positioning
+                    } else {
+                        trace("BannerActivate: Failed to retrieve banner for guild " + guildId);
+                    }
+                }, 16);
+
+                return null; // Async - banner will be available after retrieval
+            }
+
+            return null; // This entity is not a banner
+
+        } catch (error:Error) {
+            trace("BannerActivate: Error getting banner for entity - " + error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Remove entity mapping when banner is removed
+     */
+    public static function removeEntityMapping(entityId:int):void {
+        try {
+            var entityKey:String = entityId.toString();
+            if (_bannerInstanceMap[entityKey]) {
+                var bannerData:Object = _bannerInstanceMap[entityKey];
+                trace("BannerActivate: Removing entity " + entityId + " banner mapping");
+                delete _bannerInstanceMap[entityKey];
+            }
+        } catch (error:Error) {
+            trace("BannerActivate: Error removing entity mapping - " + error.message);
+        }
+    }
+
+    // ====== LEGACY: BITMAP RENDERING (for compatibility) ======
+
+    /**
+     * Handle server response - LEGACY METHOD
      * Call this when you receive a banner placement packet from server
      */
     public static function handleBannerPlacedFromServer(bannerInstanceId:String, worldX:Number, worldY:Number,
                                                         guildId:int, objectId:int):void {
         try {
-            trace("BannerActivate: Rendering banner " + bannerInstanceId + " for guild " + guildId);
+            trace("BannerActivate: LEGACY - Rendering banner " + bannerInstanceId + " for guild " + guildId);
 
             // Get guild banner hex data from BulkBannerSystem
             var guildHexData:String = BulkBannerSystem.getHexData(guildId);
@@ -144,11 +325,10 @@ public class BannerActivate {
             // Create base banner bitmap (64x64 as example)
             var baseBitmapData:BitmapData = new BitmapData(64, 64, true, 0x00000000);
 
-            // TODO: Load actual base banner texture here
-            // For now, create a simple gray banner base
+            // Create simple banner base
             createBaseBannerTexture(baseBitmapData);
 
-            // Apply guild colors using setPixel - THIS IS YOUR CORE APPROACH!
+            // Apply guild colors using setPixel
             applyGuildColorsWithSetPixel(baseBitmapData, guildHexData);
 
             // Create bitmap from the modified data
@@ -176,13 +356,13 @@ public class BannerActivate {
                 return;
             }
 
-            // Define banner customizable area (adjust these for your banner design)
-            var bannerStartX:int = 44; // 44 pixels to the right
-            var bannerStartY:int = 16; // 16 pixels up
-            var bannerWidth:int = 20;  // 20 pixels wide
-            var bannerHeight:int = 32; // 32 rows upward// Height of customizable area
+            // Define banner customizable area
+            var bannerStartX:int = 44;
+            var bannerStartY:int = 16;
+            var bannerWidth:int = 20;
+            var bannerHeight:int = 32;
 
-            // Apply pixels using setPixel - YOUR CORE APPROACH!
+            // Apply pixels using setPixel
             for (var row:int = 0; row < bannerHeight && row < colorPixels.length; row++) {
                 var rowColors:Array = colorPixels[row];
                 if (rowColors) {
@@ -228,7 +408,7 @@ public class BannerActivate {
     }
 
     private static function createBaseBannerTexture(bitmapData:BitmapData):void {
-        // Create a simple banner base (you'll replace this with actual banner texture loading)
+        // Create a simple banner base
         for (var x:int = 0; x < bitmapData.width; x++) {
             for (var y:int = 0; y < bitmapData.height; y++) {
                 // Create a simple banner pole and base
@@ -243,10 +423,6 @@ public class BannerActivate {
 
     private static function parseHexDataToColors(hexData:String):Array {
         try {
-            // Parse your hex data format into 2D color array
-            // This depends on your specific hex data format from BulkBannerSystem
-            // Example parsing for format like "FF0000,00FF00|0000FF,FFFF00|..."
-
             var rows:Array = hexData.split("|");
             var colorArray:Array = [];
 
@@ -266,7 +442,6 @@ public class BannerActivate {
                         }
                     }
                 }
-
                 colorArray.push(rowColors);
             }
 
@@ -285,35 +460,10 @@ public class BannerActivate {
     private static function addBitmapToWorld(bitmap:Bitmap):void {
         try {
             // TODO: Add bitmap to your world/stage system
-            // Examples:
-            // GameStage.addChild(bitmap);
-            // WorldContainer.addChild(bitmap);
-
             trace("BannerActivate: Added banner bitmap to world");
 
         } catch (error:Error) {
             trace("BannerActivate: Error adding bitmap to world - " + error.message);
-        }
-    }
-
-    // Alternative method name for activation systems that use "create"
-    public function create(player:Player, item:*):Boolean {
-        return activate(player, item);
-    }
-    private static function handlePlacementResponse(success:Boolean, data:String):void {
-        try {
-            if (success && data) {
-                var response:Object = JSON.parse(data);
-                if (response.success) {
-                    trace("BannerActivate: Web server confirmed banner placement");
-                } else {
-                    trace("BannerActivate: Placement failed - " + response.message);
-                }
-            } else {
-                trace("BannerActivate: HTTP request failed");
-            }
-        } catch (error:Error) {
-            trace("BannerActivate: Error handling placement response - " + error.message);
         }
     }
 
@@ -336,6 +486,33 @@ public class BannerActivate {
         };
     }
 
+    // Alternative method name for activation systems that use "create"
+    public function create(player:Player, item:*):Boolean {
+        return activate(player, item);
+    }
 
+    /**
+     * Get system status
+     */
+    public static function getStatus():Object {
+        var entityMappings:int = 0;
+        for (var entityId:String in _bannerInstanceMap) {
+            entityMappings++;
+        }
+
+        return {
+            entityMappings: entityMappings,
+            legacyBanners: getLegacyBannerCount(),
+            systemReady: _instance != null
+        };
+    }
+
+    private static function getLegacyBannerCount():int {
+        var count:int = 0;
+        for (var bannerId:String in _placedBanners) {
+            count++;
+        }
+        return count;
+    }
 }
 }

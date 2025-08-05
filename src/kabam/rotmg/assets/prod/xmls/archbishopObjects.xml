@@ -134,6 +134,7 @@
       <BagType>2</BagType>
 
       <!-- Use the object ID directly like the example -->
+      <Activate>ActivateBanner</Activate>
       <Activate objectId="BannerObject">Pet</Activate>
 
       <Usable/>

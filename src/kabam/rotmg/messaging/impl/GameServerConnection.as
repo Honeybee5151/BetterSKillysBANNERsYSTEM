@@ -212,6 +212,8 @@ import robotlegs.bender.framework.api.ILogger;
 
 import kabam.rotmg.game.model.PotionInventoryModel;
 
+import kabam.rotmg.CustomGuildBanners.BannerActivate;
+
 public class GameServerConnection {
 
    public static const FAILURE:int = 0;
@@ -300,7 +302,7 @@ public class GameServerConnection {
    public static const MARKET_MY_OFFERS_RESULT:int = 85;
    public static const BREAKDOWN_SLOT:int = 86;
    public static const IMMINENT_ARENA_WAVE:int = 87;
-
+   private static var _pendingBanners:Array = [];
    private static const TO_MILLISECONDS:int = 1000;
 
    public static var instance:GameServerConnection;
@@ -1111,17 +1113,32 @@ public class GameServerConnection {
    private function onTradeAccepted(tradeAccepted:TradeAccepted):void {
       this.gs_.hudView.tradeAccepted(tradeAccepted);
    }
-
+//815602
    private function addObject(obj:ObjectData):void {
       var map:Map = this.gs_.map;
       var go:GameObject = ObjectLibrary.getObjectFromType(obj.objectType_);
+
       if (go == null) {
          trace("unhandled object type: " + obj.objectType_);
          return;
       }
+
       var status:ObjectStatusData = obj.status_;
       go.setObjectId(status.objectId_);
       map.addObj(go, status.pos_.x_, status.pos_.y_);
+
+      // >>>>> AFTER the object is added to the map, check pending banners!
+      if (BannerActivate["_pendingBanners"]) {
+         for (var i:int = BannerActivate["_pendingBanners"].length - 1; i >= 0; i--) {
+            var pending:Object = BannerActivate["_pendingBanners"][i];
+            if (int(pending.entityId) == int(go.objectId_)) {
+               trace("BannerActivate: Found and applying pending banner for entity " + pending.entityId);
+               BannerActivate.applyGuildBannerToEntity(pending.entityId, pending.guildId);
+               BannerActivate["_pendingBanners"].splice(i, 1);
+            }
+         }
+      }
+
       if (go is Player) {
          this.handleNewPlayer(go as Player, map);
       }
@@ -1165,8 +1182,14 @@ public class GameServerConnection {
          i++;
       }
    }
-
    private function onNotification(notification:Notification):void {
+      // ADD THIS: Check for banner activation messages FIRST
+      if (notification.text_ && notification.text_.indexOf("BANNER_ACTIVATE:") == 0) {
+         handleBannerActivationNotification(notification.text_);
+         return; // Don't process as regular notification
+      }
+
+      // Your existing notification code below:
       var go:GameObject = this.gs_.map.goDict_[notification.objectId_];
       if (go != null) {
          if (go == this.player) {
@@ -1179,6 +1202,35 @@ public class GameServerConnection {
                this.makeNotification(notification.text_, go, notification.color_, 1000);
             }
          }
+      }
+   }
+   //815602
+   private function handleBannerActivationNotification(message:String):void {
+      try {
+         trace("GameServerConnection: Received banner activation: " + message);
+
+         // Parse the message: "BANNER_ACTIVATE:instanceId:guildId:entityId"
+         var parts:Array = message.split(":");
+         if (parts.length >= 4) {
+            var command:String = parts[0];           // "BANNER_ACTIVATE"
+            var bannerInstanceId:String = parts[1];  // "banner_guild7_player123_timestamp"
+            var guildId:int = parseInt(parts[2]);    // 7
+            var entityMapId:int = parseInt(parts[3]); // 12345
+
+            trace("GameServerConnection: Mapping entity " + entityMapId + " to guild " + guildId + " banner");
+
+            // Initialize BannerActivate if needed and map the entity
+            BannerActivate.getInstance();
+            BannerActivate.mapEntityToBanner(entityMapId, guildId, bannerInstanceId);
+
+            trace("GameServerConnection: Banner activation processing complete");
+
+         } else {
+            trace("GameServerConnection: Invalid banner activation message format: " + message);
+         }
+
+      } catch (error:Error) {
+         trace("GameServerConnection: Error processing banner activation - " + error.message);
       }
    }
 

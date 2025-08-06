@@ -21,6 +21,8 @@ import kabam.rotmg.constants.ItemConstants;
 import kabam.rotmg.constants.GeneralConstants;
 import com.company.util.ConversionUtil;
 import kabam.rotmg.messaging.impl.data.StatData;
+//815602
+import com.company.assembleegameclient.objects.GuildBanner;
 
 
 public class ObjectLibrary
@@ -50,6 +52,8 @@ public class ObjectLibrary
     public static const TILE_FILTER_LIST:Vector.<String> = new <String>["ALL", "Walkable", "Unwalkable", "Slow", "Speed=1"];
     public static const defaultProps_:ObjectProperties = new ObjectProperties(null);
     public static var usePatchedData:Boolean = false;
+    //815602
+    private static var _forceGuildBannerLink:Class = GuildBanner;
 
     public static const idToTypeItems_:Dictionary = new Dictionary();
     public static const typeToIdItems_:Dictionary = new Dictionary();

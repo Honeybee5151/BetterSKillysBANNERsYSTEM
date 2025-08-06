@@ -108,7 +108,7 @@
       <BlocksSight/>
    </Object>
    <Object id="BannerObject" type="0x3787">
-      <Class>GameObject</Class>
+      <Class>GuildBanner</Class>
       <Texture>
          <File>archbishopObjects64x64</File>
          <Index>66</Index>

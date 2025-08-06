@@ -73,6 +73,7 @@ import kabam.lib.net.api.MessageMap;
 import kabam.lib.net.api.MessageProvider;
 import kabam.lib.net.impl.Message;
 import kabam.lib.net.impl.SocketServer;
+import kabam.rotmg.CustomGuildBanners.BulkBannerSystem;
 import kabam.rotmg.account.core.Account;
 import kabam.rotmg.application.api.ApplicationSetup;
 import kabam.rotmg.arena.control.ImminentArenaWaveSignal;
@@ -1025,6 +1026,7 @@ public class GameServerConnection {
             if (isNaN(Parameters.DamageCounter[damage.targetId_])) {
                Parameters.DamageCounter[damage.targetId_] = 0;
             }
+
             var targetId:* = damage.targetId_;
             var damageAdd:* = Parameters.DamageCounter[targetId] + damage.damageAmount_;
             Parameters.DamageCounter[targetId] = damageAdd;
@@ -1114,31 +1116,82 @@ public class GameServerConnection {
       this.gs_.hudView.tradeAccepted(tradeAccepted);
    }
 //815602
-   private function addObject(obj:ObjectData):void {
-      var map:Map = this.gs_.map;
-      var go:GameObject = ObjectLibrary.getObjectFromType(obj.objectType_);
+    private function addObject(obj:ObjectData):void {
+        var map:Map = this.gs_.map;
+        var go:GameObject = ObjectLibrary.getObjectFromType(obj.objectType_);
 
-      if (go == null) {
-         trace("unhandled object type: " + obj.objectType_);
-         return;
-      }
+        if (go == null) {
+            trace("unhandled object type: " + obj.objectType_);
+            return;
+        }
 
-      var status:ObjectStatusData = obj.status_;
-      go.setObjectId(status.objectId_);
-      map.addObj(go, status.pos_.x_, status.pos_.y_);
+        var status:ObjectStatusData = obj.status_;
+        go.setObjectId(status.objectId_);
+        map.addObj(go, status.pos_.x_, status.pos_.y_);
 
-      // >>>>> AFTER the object is added to the map, check pending banners!
-      if (BannerActivate["_pendingBanners"]) {
+        // DEBUG: Log all object types to see what we're getting
+        trace("addObject: objectType = " + obj.objectType_.toString(16) + " (hex), objectId = " + go.objectId_);
+
+        // Handle banner objects - extract guildId from stats
+        if (obj.objectType_ == 0x3787) { // Your banner object type
+            trace("addObject: Found banner entity " + go.objectId_ + ", extracting guildId from stats");
+
+            // DEBUG: Log all stats for this object
+            if (status.stats_) {
+                trace("addObject: Banner has " + status.stats_.length + " stats:");
+                for (var j:int = 0; j < status.stats_.length; j++) {
+                    var debugStat:StatData = status.stats_[j];
+                    trace("  Stat " + j + ": type=" + debugStat.statType_ + ", value=" + debugStat.statValue_);
+                }
+            } else {
+                trace("addObject: Banner has NO stats!");
+            }
+
+            var guildId:int = extractGuildIdFromStats(status.stats_);
+
+            if (guildId > 0) {
+                trace("addObject: Found guildId " + guildId + " for banner entity " + go.objectId_);
+
+                var bannerInstanceId:String = "banner_guild" + guildId + "_entity" + go.objectId_ + "_" + new Date().getTime();
+
+                BannerActivate.getInstance();
+                BannerActivate.mapEntityToBanner(go.objectId_, guildId, bannerInstanceId);
+
+                trace("addObject: Banner applied directly to entity " + go.objectId_);
+            } else {
+                trace("addObject: No valid guildId found in banner entity stats, falling back to old system");
+                BannerActivate.applyBannerOnEntityCreation(go);
+            }
+        }
+
+      // Keep your existing pending banner check as fallback
+      trace("addObject: Checking for pending banners. go.objectId_: " + go.objectId_);
+
+      if (BannerActivate["_pendingBanners"] && BannerActivate["_pendingBanners"].length > 0) {
+         trace("Current pending banners count: " + BannerActivate["_pendingBanners"].length);
+
          for (var i:int = BannerActivate["_pendingBanners"].length - 1; i >= 0; i--) {
             var pending:Object = BannerActivate["_pendingBanners"][i];
-            if (int(pending.entityId) == int(go.objectId_)) {
-               trace("BannerActivate: Found and applying pending banner for entity " + pending.entityId);
-               BannerActivate.applyGuildBannerToEntity(pending.entityId, pending.guildId);
-               BannerActivate["_pendingBanners"].splice(i, 1);
+            var pendingId:int = int(pending.entityId);
+            var actualId:int = int(go.objectId_);
+
+            trace("Comparing pending ID " + pendingId + " with actual ID " + actualId);
+
+            if (BannerActivate.matchesPendingBanner(actualId, pendingId)) {
+               trace("BannerActivate: Match found! Pending ID " + pendingId + " -> Actual ID " + actualId);
+
+               if (BannerActivate.processPendingBanner(actualId, pending.guildId)) {
+                  BannerActivate["_pendingBanners"].splice(i, 1);
+                  trace("BannerActivate: Banner applied and removed from pending queue");
+               } else {
+                  trace("BannerActivate: Failed to apply banner to entity " + actualId);
+               }
+               break;
             }
          }
       }
 
+      // Rest of your existing code...
       if (go is Player) {
          this.handleNewPlayer(go as Player, map);
       }
@@ -1147,6 +1200,32 @@ public class GameServerConnection {
          this.updateGameObjectTileSignal.dispatch(new UpdateGameObjectTileVO(go.x_, go.y_, go));
       }
    }
+
+// Helper function to extract guildId from object stats
+    private function extractGuildIdFromStats(stats:Vector.<StatData>):int {
+        trace("extractGuildIdFromStats: Starting extraction...");
+
+        if (stats == null) {
+            trace("extractGuildIdFromStats: stats is null!");
+            return -1;
+        }
+
+        trace("extractGuildIdFromStats: Found " + stats.length + " stats to check");
+
+        for (var i:int = 0; i < stats.length; i++) {
+            var stat:StatData = stats[i];
+            trace("extractGuildIdFromStats: Checking stat " + i + " - type=" + stat.statType_ + ", value=" + stat.statValue_);
+
+            // Check for your custom guildId stat (using stat ID 200)
+            if (stat.statType_ == 200) {
+                trace("extractGuildIdFromStats: FOUND guildId stat: " + stat.statValue_);
+                return stat.statValue_;
+            }
+        }
+
+        trace("extractGuildIdFromStats: No guildId stat found (looking for statType 200)");
+        return -1;
+    }
 
    private function handleNewPlayer(player:Player, map:Map):void {
       this.setPlayerSkinTemplate(player, 0);
@@ -1205,34 +1284,57 @@ public class GameServerConnection {
       }
    }
    //815602
-   private function handleBannerActivationNotification(message:String):void {
-      try {
-         trace("GameServerConnection: Received banner activation: " + message);
+    private function handleBannerActivationNotification(message:String):void {
+        try {
+            trace("GameServerConnection: Received banner activation: " + message);
 
-         // Parse the message: "BANNER_ACTIVATE:instanceId:guildId:entityId"
-         var parts:Array = message.split(":");
-         if (parts.length >= 4) {
-            var command:String = parts[0];           // "BANNER_ACTIVATE"
-            var bannerInstanceId:String = parts[1];  // "banner_guild7_player123_timestamp"
-            var guildId:int = parseInt(parts[2]);    // 7
-            var entityMapId:int = parseInt(parts[3]); // 12345
+            var parts:Array = message.split(":");
+            if (parts.length >= 4) {
+                var command:String = parts[0];           // "BANNER_ACTIVATE"
+                var bannerInstanceId:String = parts[1];  // "banner_1_4248_timestamp"
+                var guildId:int = parseInt(parts[2]);    // Guild ID
+                var entityMapId:int = parseInt(parts[3]); // Entity ID
 
-            trace("GameServerConnection: Mapping entity " + entityMapId + " to guild " + guildId + " banner");
+                trace("GameServerConnection: Processing banner for guild " + guildId + ", entity " + entityMapId);
 
-            // Initialize BannerActivate if needed and map the entity
-            BannerActivate.getInstance();
-            BannerActivate.mapEntityToBanner(entityMapId, guildId, bannerInstanceId);
+                // CHECK: Does BulkBannerSystem have data for this guild?
+                var hasBanner:Boolean = false;
+                var guildHexData:String = null;
 
-            trace("GameServerConnection: Banner activation processing complete");
+                try {
+                    hasBanner = BulkBannerSystem.hasBanner(guildId);
+                    trace("GameServerConnection: BulkBannerSystem.hasBanner(" + guildId + "): " + hasBanner);
 
-         } else {
-            trace("GameServerConnection: Invalid banner activation message format: " + message);
-         }
+                    if (hasBanner) {
+                        guildHexData = BulkBannerSystem.getHexData(guildId);
+                        trace("GameServerConnection: Got guild hex data, length: " + (guildHexData ? guildHexData.length : "null"));
 
-      } catch (error:Error) {
-         trace("GameServerConnection: Error processing banner activation - " + error.message);
-      }
-   }
+                        if (guildHexData && guildHexData.length > 50) {
+                            trace("GameServerConnection: Preview: " + guildHexData.substring(0, 50) + "...");
+                        }
+                    } else {
+                        trace("GameServerConnection: No banner data found for guild " + guildId);
+                    }
+
+                } catch (bulkError:Error) {
+                    trace("GameServerConnection: Error calling BulkBannerSystem: " + bulkError.message);
+                }
+
+                // Apply the banner with the data we found (or null for fallback)
+                BannerActivate.getInstance();
+                BannerActivate.mapEntityToBanner(entityMapId, guildId, bannerInstanceId);
+
+                trace("GameServerConnection: Banner processing complete");
+
+            } else {
+                trace("GameServerConnection: Invalid banner activation message format: " + message);
+            }
+
+        } catch (error:Error) {
+            trace("GameServerConnection: Error processing banner activation - " + error.message);
+        }
+    }
+
 
    private function makeNotification(text:String, go:GameObject, color:uint, lifetime:int):void {
       var queuedStatusText:QueuedStatusText = new QueuedStatusText(go, text, color, lifetime);

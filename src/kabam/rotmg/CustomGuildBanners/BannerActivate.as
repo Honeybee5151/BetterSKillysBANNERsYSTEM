@@ -164,53 +164,223 @@ public class BannerActivate {
 
     private static function renderBannerFromHexString(hexData:String):BitmapData {
         try {
-            // Assuming the hex string represents 64x64 pixels (4096 pixels total)
-            // Each pixel is represented by 6 hex characters (RRGGBB)
-            var textureSize:int = 64;
-            var expectedLength:int = textureSize * textureSize * 6; // 64x64x6 = 24576 characters
+            // Original banner dimensions from data
+            var bannerWidth:int = 20;
+            var bannerHeight:int = 32;
 
+            // Scale factor to make pixels bigger
+            var pixelScale:int = 5;
+
+            // Pole dimensions (in game pixels)
+            var poleWidth:int = 2; // 2 pixels wide
+            var poleExtension:int = 16; // Extends 16 pixels below banner
+
+            // Final scaled dimensions
+            var scaledBannerWidth:int = bannerWidth * pixelScale;
+            var scaledBannerHeight:int = bannerHeight * pixelScale;
+            var scaledPoleWidth:int = poleWidth * pixelScale;
+            var scaledPoleExtension:int = poleExtension * pixelScale;
+
+            // Total texture size - banner width stays same, height includes pole extension
+            var totalWidth:int = scaledBannerWidth; // Just banner width
+            var totalHeight:int = scaledBannerHeight + scaledPoleExtension; // Banner + pole extension
+
+            var expectedLength:int = bannerWidth * bannerHeight * 6; // 20x32x6 = 3840 characters
+
+            trace("BannerActivate: Creating banner with pole underneath - Banner: " + scaledBannerWidth + "x" + scaledBannerHeight + ", Total: " + totalWidth + "x" + totalHeight + " (scale: " + pixelScale + "x)");
             trace("BannerActivate: Hex data length: " + hexData.length + ", expected: " + expectedLength);
 
-            var texture:BitmapData = new BitmapData(textureSize, textureSize, true, 0x00000000);
+            var texture:BitmapData = new BitmapData(totalWidth, totalHeight, true, 0x00000000);
 
-            // Process the hex string pixel by pixel
+            // Process banner data pixel by pixel for the top portion
             var hexIndex:int = 0;
 
-            for (var y:int = 0; y < textureSize; y++) {
-                for (var x:int = 0; x < textureSize; x++) {
+            for (var gameY:int = 0; gameY < bannerHeight; gameY++) {
+                for (var gameX:int = 0; gameX < bannerWidth; gameX++) {
 
-                    // Make sure we don't go past the end of the hex string
-                    if (hexIndex + 6 > hexData.length) {
-                        // Fill remaining pixels with transparent
-                        texture.setPixel32(x, y, 0x00000000);
-                        continue;
+                    // Get banner pixel color
+                    var bannerColor:uint = 0x00000000; // Default transparent
+
+                    if (hexIndex + 6 <= hexData.length) {
+                        var pixelHex:String = hexData.substr(hexIndex, 6);
+                        hexIndex += 6;
+
+                        if (pixelHex != "000000") {
+                            bannerColor = uint("0xFF" + pixelHex);
+                        }
                     }
 
-                    // Extract 6 characters for this pixel (RRGGBB)
-                    var pixelHex:String = hexData.substr(hexIndex, 6);
-                    hexIndex += 6;
-
-                    // Convert to color value
-                    var color:uint;
-                    if (pixelHex == "000000") {
-                        // Transparent pixel
-                        color = 0x00000000;
-                    } else {
-                        // Opaque pixel with RGB value
-                        color = uint("0xFF" + pixelHex);
-                    }
-
-                    // Set the pixel
-                    texture.setPixel32(x, y, color);
+                    // Render this game pixel as a scaled block in the banner area
+                    renderScaledPixel(texture, gameX * pixelScale, gameY * pixelScale, pixelScale, bannerColor);
                 }
             }
 
-            trace("BannerActivate: Rendered " + (hexIndex / 6) + " pixels from hex data");
+            // Now render the pole under the right side of the banner
+            renderPoleUnderBanner(texture, bannerWidth, bannerHeight, poleWidth, poleExtension, pixelScale);
+            trace("BannerActivate: Rendered banner with pole support underneath");
             return texture;
 
         } catch (error:Error) {
-            trace("BannerActivate: Error rendering from hex string - " + error.message);
-            return null;
+            trace("BannerActivate: Error rendering banner with pole - " + error.message);
+            return createFallbackBannerWithPole();
+        }
+    }
+
+    private static function renderScaledPixel(texture:BitmapData, startX:int, startY:int, scale:int, color:uint):void {
+        try {
+            // Fill a scale x scale block with the pixel color
+            for (var dy:int = 0; dy < scale; dy++) {
+                for (var dx:int = 0; dx < scale; dx++) {
+                    var pixelX:int = startX + dx;
+                    var pixelY:int = startY + dy;
+
+                    if (pixelX >= 0 && pixelX < texture.width && pixelY >= 0 && pixelY < texture.height) {
+                        texture.setPixel32(pixelX, pixelY, color);
+                    }
+                }
+            }
+        } catch (error:Error) {
+            trace("BannerActivate: Error rendering scaled pixel - " + error.message);
+        }
+    }
+
+    private static function renderPoleUnderBanner(texture:BitmapData, bannerWidth:int, bannerHeight:int, poleWidth:int, poleExtension:int, pixelScale:int):void {
+        try {
+            // Brown colors for wood texture
+            var brownColors:Array = [
+                0xFF8B4513,  // Dark brown
+                0xFF654321,  // Very dark brown
+                0xFF4A2C17,  // Darker brown
+                0xFF2F1B14
+            ];
+
+            // Calculate pole position - under the right side of banner
+            var poleStartX:int = ((bannerWidth - poleWidth) / 2) * pixelScale; // Right side minus pole width
+            var poleStartY:int = (bannerHeight * pixelScale) + pixelScale;// Starts where banner ends
+
+            trace("BannerActivate: Rendering pole at position (" + poleStartX + ", " + poleStartY + ") size " + (poleWidth * pixelScale) + "x" + (poleExtension * pixelScale));
+
+            // Render pole extending downward
+            for (var gameX:int = 0; gameX < poleWidth; gameX++) {
+                for (var gameY:int = 0; gameY < poleExtension; gameY++) {
+                    var color:uint;
+
+                    // Create wood grain pattern
+                    if (gameX == 0) {
+                        // Left edge of pole - darker (shadow side)
+                        color = (gameY % 3 == 0) ? brownColors[3] : brownColors[2];
+                    } else {
+                        // Right edge of pole - lighter (highlight side)
+                        color = (gameY % 4 == 0) ? brownColors[0] : brownColors[1];
+                    }
+
+                    // Add horizontal wood grain every few pixels
+                    if (gameY % 6 == 0) {
+                        color = brownColors[3]; // Dark grain line
+                    } else if (gameY % 6 == 1) {
+                        color = brownColors[0]; // Light highlight after grain
+                    }
+
+                    // Render this pole pixel as a scaled block
+                    var screenX:int = poleStartX + (gameX * pixelScale);
+                    var screenY:int = poleStartY + (gameY * pixelScale);
+
+                    renderScaledPixel(texture, screenX, screenY, pixelScale, color);
+                }
+            }
+
+            // Add connection point where pole meets banner
+            addPoleConnection(texture, poleStartX, poleStartY, pixelScale);
+
+            trace("BannerActivate: Rendered wooden pole support under right side");
+
+        } catch (error:Error) {
+            trace("BannerActivate: Error rendering pole under banner - " + error.message);
+        }
+    }
+
+    private static function addPoleConnection(texture:BitmapData, poleX:int, poleY:int, pixelScale:int):void {
+        try {
+            var connectionColor:uint = 0xFF8B7355; // Bronze/brass color for connection
+            var shadowColor:uint = 0xFF5D4037; // Dark shadow
+
+            // Add a small connection piece where pole meets banner
+            // This represents the mounting hardware
+            var connectionWidth:int = pixelScale * 2; // Slightly wider than pole
+            var connectionHeight:int = pixelScale; // 1 game pixel tall
+
+            for (var dx:int = 0; dx < connectionWidth; dx++) {
+                for (var dy:int = 0; dy < connectionHeight; dy++) {
+                    var x:int = poleX + dx;
+                    var y:int = poleY - connectionHeight + dy; // Just above where pole starts
+
+                    if (x >= 0 && x < texture.width && y >= 0 && y < texture.height) {
+                        texture.setPixel32(x, y, connectionColor);
+                    }
+                }
+            }
+
+            // Add shadow line under connection
+            for (var shadowX:int = poleX; shadowX < poleX + connectionWidth; shadowX++) {
+                if (shadowX >= 0 && shadowX < texture.width && poleY >= 0 && poleY < texture.height) {
+                    texture.setPixel32(shadowX, poleY, shadowColor);
+                }
+            }
+
+        } catch (error:Error) {
+            trace("BannerActivate: Error adding pole connection - " + error.message);
+        }
+    }
+
+    private static function createFallbackBannerWithPole():BitmapData {
+        try {
+            var pixelScale:int = 3;
+            var bannerWidth:int = 20;
+            var bannerHeight:int = 32;
+            var poleExtension:int = 16;
+
+            var scaledBannerWidth:int = bannerWidth * pixelScale;
+            var scaledBannerHeight:int = bannerHeight * pixelScale;
+            var scaledPoleExtension:int = poleExtension * pixelScale;
+
+            var totalWidth:int = scaledBannerWidth;
+            var totalHeight:int = scaledBannerHeight + scaledPoleExtension;
+
+            var texture:BitmapData = new BitmapData(totalWidth, totalHeight, true, 0x00000000);
+
+            // Create simple fallback banner pattern
+            var colors:Array = [0xFFFF0000, 0xFFFFFFFF, 0xFF0000FF]; // Red, white, blue
+
+            for (var gameY:int = 0; gameY < bannerHeight; gameY++) {
+                for (var gameX:int = 0; gameX < bannerWidth; gameX++) {
+                    var colorIndex:int = Math.floor(gameY / (bannerHeight / 3)); // Divide into 3 sections
+                    var color:uint = colors[Math.min(colorIndex, colors.length - 1)];
+
+                    renderScaledPixel(texture, gameX * pixelScale, gameY * pixelScale, pixelScale, color);
+                }
+            }
+
+            // Add pole under right side
+            renderPoleUnderBanner(texture, bannerWidth, bannerHeight, 2, poleExtension, pixelScale);
+
+            trace("BannerActivate: Created fallback banner with pole support (" + totalWidth + "x" + totalHeight + ")");
+            return texture;
+
+        } catch (error:Error) {
+            trace("BannerActivate: Error creating fallback banner with pole - " + error.message);
+            return new BitmapData(60, 144, false, 0xFF808080); // Scaled gray fallback (20*3 x (32+16)*3)
+        }
+    }
+
+// Optional: Function to adjust scale factor for different needs
+
+
+
+// Optional: Function to adjust scale factor for different needs
+    public static function setBannerScale(newScale:int):void {
+        if (newScale > 0 && newScale <= 8) {
+            // You could store this as a static variable and use it in rendering
+            trace("BannerActivate: Banner scale set to " + newScale + "x");
         }
     }
 
@@ -591,4 +761,5 @@ public class BannerActivate {
 
 
 }
+
 }

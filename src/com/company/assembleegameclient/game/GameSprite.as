@@ -141,7 +141,7 @@ public function bannerSystemAdd():void {
    }
       addChild(bannerManager);
       bannerManager.bannerSystemAdd();
-      testDisplayBanner()
+      //testDisplayBanner()
 
 
 
@@ -707,7 +707,9 @@ public function bannerSystemAdd():void {
          this.chatPlayerMenu = null;
       }
    }
+
    //815602
+   /*
    public function testDisplayBanner():void {
       trace("Testing banner display...");
 
@@ -724,6 +726,6 @@ public function bannerSystemAdd():void {
          trace("FAILED: No banner found for Guild 1");
       }
    }
-
+*/
 }
 }

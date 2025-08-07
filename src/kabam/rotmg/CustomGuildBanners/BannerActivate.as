@@ -162,7 +162,7 @@ public class BannerActivate {
         }
     }
 
-    private static function renderBannerFromHexString(hexData:String):BitmapData {
+    public static function renderBannerFromHexString(hexData:String):BitmapData {
         try {
             // Original banner dimensions from data
             var bannerWidth:int = 20;
@@ -493,7 +493,7 @@ public class BannerActivate {
 
     // ====== ENTITY REFRESH ======
 
-    private static function forceEntityRefresh(gameEntity:*):void {
+    public static function forceEntityRefresh(gameEntity:*):void {
         try {
             // Force the entity to redraw with new texture
             if (gameEntity.hasOwnProperty("invalidate") && gameEntity.invalidate is Function) {
@@ -736,17 +736,17 @@ public class BannerActivate {
     private static function requestGuildBannerAndRetry(entityId:int, guildId:int, instanceId:String):void {
         trace("BannerActivate: Requesting banner for guild " + guildId + " from server...");
 
-        BannerRetrievalSystem.requestGuildBanner(guildId, function(bannerShape:*, receivedGuildId:int):void {
-            trace("BannerActivate: Received response for guild " + receivedGuildId);
+      //  BannerRetrievalSystem.requestGuildBanner(guildId, function(bannerShape:*, receivedGuildId:int):void {
+           // trace("BannerActivate: Received response for guild " + receivedGuildId);
 
             // The BannerRetrievalSystem should have stored the data in BulkBannerSystem
             // Now retry the banner application
-            setTimeout(function():void {
+           // setTimeout(function():void {
                 trace("BannerActivate: Retrying banner application for entity " + entityId);
                 mapEntityToBanner(entityId, guildId, instanceId);
-            }, 100); // Small delay to ensure storage is complete
+            //}, 100); // Small delay to ensure storage is complete
 
-        }, 16); // pixelSize parameter
+       // }, 16); // pixelSize parameter
     }
 
 // Helper timeout function if you don't have it

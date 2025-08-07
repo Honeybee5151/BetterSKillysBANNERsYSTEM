@@ -1116,82 +1116,78 @@ public class GameServerConnection {
       this.gs_.hudView.tradeAccepted(tradeAccepted);
    }
 //815602
-    private function addObject(obj:ObjectData):void {
-        var map:Map = this.gs_.map;
-        var go:GameObject = ObjectLibrary.getObjectFromType(obj.objectType_);
+   private function addObject(obj:ObjectData):void {
+      var map:Map = this.gs_.map;
+      var go:GameObject = ObjectLibrary.getObjectFromType(obj.objectType_);
 
-        if (go == null) {
-            trace("unhandled object type: " + obj.objectType_);
-            return;
-        }
+      if (go == null) {
+         trace("unhandled object type: " + obj.objectType_);
+         return;
+      }
 
-        var status:ObjectStatusData = obj.status_;
-        go.setObjectId(status.objectId_);
-        map.addObj(go, status.pos_.x_, status.pos_.y_);
+      var status:ObjectStatusData = obj.status_;
+      go.setObjectId(status.objectId_);
+      map.addObj(go, status.pos_.x_, status.pos_.y_);
 
-        // DEBUG: Log all object types to see what we're getting
-        trace("addObject: objectType = " + obj.objectType_.toString(16) + " (hex), objectId = " + go.objectId_);
+      // OPTIMIZATION 1: Only do banner processing for banner objects
+      var isBannerObject:Boolean = (obj.objectType_ == 0x3787);
 
-        // Handle banner objects - extract guildId from stats
-        if (obj.objectType_ == 0x3787) { // Your banner object type
-            trace("addObject: Found banner entity " + go.objectId_ + ", extracting guildId from stats");
+      if (isBannerObject) {
+         // OPTIMIZATION 2: Cache objectId to avoid repeated property access
+         var entityId:int = go.objectId_;
 
-            // DEBUG: Log all stats for this object
-            if (status.stats_) {
-                trace("addObject: Banner has " + status.stats_.length + " stats:");
-                for (var j:int = 0; j < status.stats_.length; j++) {
-                    var debugStat:StatData = status.stats_[j];
-                    trace("  Stat " + j + ": type=" + debugStat.statType_ + ", value=" + debugStat.statValue_);
-                }
-            } else {
-                trace("addObject: Banner has NO stats!");
+         // OPTIMIZATION 3: Only trace in debug mode
+         if (DEBUG_MODE) {
+            trace("addObject: Found banner entity " + entityId + ", extracting guildId from stats");
+         }
+
+         var guildId:int = extractGuildIdFromStats(status.stats_);
+
+         if (guildId > 0) {
+            // OPTIMIZATION 4: Simpler instance ID without date
+            var bannerInstanceId:String = "banner_" + guildId + "_" + entityId;
+
+            BannerActivate.getInstance();
+            BannerActivate.mapEntityToBanner(entityId, guildId, bannerInstanceId);
+
+            if (DEBUG_MODE) {
+               trace("addObject: Banner applied directly to entity " + entityId);
             }
+         } else {
+            // Fallback for banners without guildId
+            BannerActivate.applyBannerOnEntityCreation(go);
+         }
+      }
 
-            var guildId:int = extractGuildIdFromStats(status.stats_);
+      // OPTIMIZATION 5: Only check pending banners if there are any
+      var pendingBanners:Array = BannerActivate["_pendingBanners"];
+      if (pendingBanners && pendingBanners.length > 0) {
+         var actualId:int = go.objectId_;
 
-            if (guildId > 0) {
-                trace("addObject: Found guildId " + guildId + " for banner entity " + go.objectId_);
-
-                var bannerInstanceId:String = "banner_guild" + guildId + "_entity" + go.objectId_ + "_" + new Date().getTime();
-
-                BannerActivate.getInstance();
-                BannerActivate.mapEntityToBanner(go.objectId_, guildId, bannerInstanceId);
-
-                trace("addObject: Banner applied directly to entity " + go.objectId_);
-            } else {
-                trace("addObject: No valid guildId found in banner entity stats, falling back to old system");
-                BannerActivate.applyBannerOnEntityCreation(go);
-            }
-        }
-
-      // Keep your existing pending banner check as fallback
-      trace("addObject: Checking for pending banners. go.objectId_: " + go.objectId_);
-
-      if (BannerActivate["_pendingBanners"] && BannerActivate["_pendingBanners"].length > 0) {
-         trace("Current pending banners count: " + BannerActivate["_pendingBanners"].length);
-
-         for (var i:int = BannerActivate["_pendingBanners"].length - 1; i >= 0; i--) {
-            var pending:Object = BannerActivate["_pendingBanners"][i];
-            var pendingId:int = int(pending.entityId);
-            var actualId:int = int(go.objectId_);
-
-            trace("Comparing pending ID " + pendingId + " with actual ID " + actualId);
+         // OPTIMIZATION 6: Use for loop instead of for-each for better performance
+         for (var i:int = pendingBanners.length - 1; i >= 0; i--) {
+            var pending:Object = pendingBanners[i];
+            var pendingId:int = pending.entityId;
 
             if (BannerActivate.matchesPendingBanner(actualId, pendingId)) {
-               trace("BannerActivate: Match found! Pending ID " + pendingId + " -> Actual ID " + actualId);
+               if (DEBUG_MODE) {
+                  trace("BannerActivate: Match found! Pending ID " + pendingId + " -> Actual ID " + actualId);
+               }
 
                if (BannerActivate.processPendingBanner(actualId, pending.guildId)) {
-                  BannerActivate["_pendingBanners"].splice(i, 1);
-                  trace("BannerActivate: Banner applied and removed from pending queue");
-               } else {
+                  pendingBanners.splice(i, 1);
+                  if (DEBUG_MODE) {
+                     trace("BannerActivate: Banner applied and removed from pending queue");
+                  }
+               } else if (DEBUG_MODE) {
                   trace("BannerActivate: Failed to apply banner to entity " + actualId);
                }
-               break;
+               break; // Exit loop after first match
             }
          }
       }
 
-      // Rest of your existing code...
+      // Rest of existing code...
       if (go is Player) {
          this.handleNewPlayer(go as Player, map);
       }
@@ -1201,6 +1197,9 @@ public class GameServerConnection {
       }
    }
 
+// OPTIMIZATION 7: Add debug mode flag
+   private static const DEBUG_MODE:Boolean = false; // Set to false in production
+//815602
 // Helper function to extract guildId from object stats
     private function extractGuildIdFromStats(stats:Vector.<StatData>):int {
         trace("extractGuildIdFromStats: Starting extraction...");

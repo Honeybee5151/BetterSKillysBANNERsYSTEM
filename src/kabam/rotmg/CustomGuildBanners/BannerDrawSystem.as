@@ -131,7 +131,7 @@ public class BannerDrawSystem extends Sprite {
         var shaft:Shape = new Shape();
         shaft.graphics.beginFill(0x8B4513); // Brown shaft
         shaft.graphics.lineStyle(2, 0x654321); // Darker brown border
-        shaft.graphics.drawRect(bannerWidth - shaftWidth - 5, bannerHeight + 5, shaftWidth, shaftHeight);
+        shaft.graphics.drawRect((bannerWidth - shaftWidth) / 2, bannerHeight + 5, shaftWidth, shaftHeight);
         shaft.graphics.endFill();
 
         banner.addChild(bannerBg);

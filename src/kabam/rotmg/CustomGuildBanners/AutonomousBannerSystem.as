@@ -216,15 +216,7 @@ public class AutonomousBannerSystem {
         trace("AutonomousBannerSystem: Auto-send on save: " + enabled);
     }
 
-    public static function enableKeybind(enabled:Boolean = true):void {
-        _keybindEnabled = enabled;
-        trace("AutonomousBannerSystem: Keybind enabled: " + enabled);
-    }
 
-    public static function setSendKey(keyCode:uint):void {
-        _sendKey = keyCode;
-        trace("AutonomousBannerSystem: Send key set to: " + keyCode);
-    }
 
     /**
      * Manual send function (can be called from anywhere)
@@ -243,8 +235,6 @@ public class AutonomousBannerSystem {
             active: _isActive,
             bannerSystemOpen: isBannerSystemOpen(),
             autoSendOnSave: _autoSendOnSave,
-            keybindEnabled: _keybindEnabled,
-            sendKey: _sendKey,
             currentGuild: getCurrentGuildName(player)
         };
     }

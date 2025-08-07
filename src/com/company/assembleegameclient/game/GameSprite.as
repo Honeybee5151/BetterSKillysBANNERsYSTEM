@@ -132,13 +132,14 @@ public function bannerSystemAdd():void {
          bannerManager.updateMapReference(this.map);
       }
    var guildId:int = 123; // The guild you want to show
-   var bannerShape:Shape = BulkBannerSystem.getBanner(guildId, 16);
+/*   var bannerShape:Shape = BulkBannerSystem.getBanner(guildId, 16);
 
    if (bannerShape) {
       bannerShape.x = 100; // Position where you want it
       bannerShape.y = 50;
       addChild(bannerShape); // Add to your display container
-   }
+  */
+
       addChild(bannerManager);
       bannerManager.bannerSystemAdd();
       //testDisplayBanner()

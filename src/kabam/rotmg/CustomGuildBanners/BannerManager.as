@@ -203,7 +203,7 @@ public class BannerManager extends Sprite {
         // Export banner to server
         if (gameMap && gameMap.player_) {
             // Clear cache so updated banner will be fetched next time
-            ClientBannerRendering.clearBannerCache();
+            // ClientBannerRendering.clearBannerCache();
 
             AutonomousBannerSystem.sendBannerNow("playerBanner", gameMap.player_);
             trace("Auto-saved, cleared cache, and exporting banner to server...");
@@ -304,7 +304,7 @@ public class BannerManager extends Sprite {
     }
 
     public function displayGuildBanner(guildId:int, container:*, x:Number = 0, y:Number = 0, size:int = 16):void {
-        BannerRetrievalSystem.displayBannerAt(guildId, container, x, y, size, getCurrentPlayer());
+        // BannerRetrievalSystem.displayBannerAt(guildId, container, x, y, size, getCurrentPlayer());
     }
 
     public function displayPlayerBanner(container:*, x:Number = 0, y:Number = 0, size:int = 24):void {
@@ -324,7 +324,7 @@ public class BannerManager extends Sprite {
     }
 
     public function displayMultipleGuildBanners(guildIds:Array, callback:Function, size:int = 16):void {
-        BannerRetrievalSystem.requestMultipleBanners(guildIds, callback, size, getCurrentPlayer());
+        //BannerRetrievalSystem.requestMultipleBanners(guildIds, callback, size, getCurrentPlayer());
     }
 
     /**
@@ -333,8 +333,8 @@ public class BannerManager extends Sprite {
     public function cleanupBannerSystems():void {
         trace("Manager: Cleaning up banner systems...");
         try {
-            BannerRetrievalSystem.cancelAllRequests();
-            ClientBannerRendering.clearBannerCache();
+            // BannerRetrievalSystem.cancelAllRequests();
+            //ClientBannerRendering.clearBannerCache();
         } catch (error:Error) {
             trace("Manager: Error during banner cleanup - " + error.message);
         }
@@ -343,12 +343,12 @@ public class BannerManager extends Sprite {
     /**
      * Get banner system status for debugging
      */
-    public function getBannerSystemStatus():Object {
-        return {
-            retrievalStatus: BannerRetrievalSystem.getStatus(),
-            cacheStatus: ClientBannerRendering.getCacheStats()
-        };
-    }
+    // public function getBannerSystemStatus():Object {
+    // return {
+    //  retrievalStatus: BannerRetrievalSystem.getStatus(),
+    // cacheStatus: ClientBannerRendering.getCacheStats()
+    //}//;
+    //}
 
 // Helper method - adapt this to however your manager gets the current player
     private function getCurrentPlayer():* {
@@ -364,28 +364,31 @@ public class BannerManager extends Sprite {
      * @param callback Optional callback when banner object is created
      */
 
-    public function createRotMGBannerInWorld(guildId:int, x:Number, y:Number):void {
+   // public function createRotMGBannerInWorld(guildId:int, x:Number, y:Number):void {
         // Request the banner bitmap directly at pixelSize = 6 (or your desired scale)
-        BannerRetrievalSystem.requestGuildBanner(guildId, function(bannerBitmap:Bitmap, receivedGuildId:int):void {
-            if (bannerBitmap) {
-                bannerBitmap.smoothing = false;
-                bannerBitmap.pixelSnapping = PixelSnapping.ALWAYS;
+        /* BannerRetrievalSystem.requestGuildBanner(guildId, function(bannerBitmap:Bitmap, receivedGuildId:int):void {
+             if (bannerBitmap) {
+                 bannerBitmap.smoothing = false;
+                 bannerBitmap.pixelSnapping = PixelSnapping.ALWAYS;
 
-                // Do NOT scale the bitmap instance
-                bannerBitmap.scaleX = 1;
-                bannerBitmap.scaleY = 1;
+                 // Do NOT scale the bitmap instance
+                 bannerBitmap.scaleX = 1;
+                 bannerBitmap.scaleY = 1;
 
-                // Snap to integer pixel positions (no division needed since bitmap is already scaled)
-                bannerBitmap.x = Math.round(x);
-                bannerBitmap.y = Math.round(y);
+                 // Snap to integer pixel positions (no division needed since bitmap is already scaled)
+                 bannerBitmap.x = Math.round(x);
+                 bannerBitmap.y = Math.round(y);
 
-                if (gameMap) {
-                    gameMap.addChild(bannerBitmap);
-                }
+                 if (gameMap) {
+                     gameMap.addChild(bannerBitmap);
+                 }
 
-                trace("Created banner at world pos (" + bannerBitmap.x + "," + bannerBitmap.y + ")");
-            }
-        }, 6, getCurrentPlayer()); // pixelSize = 6 - generate scaled bitmap
+                 trace("Created banner at world pos (" + bannerBitmap.x + "," + bannerBitmap.y + ")");
+             }
+         }, 6, getCurrentPlayer()); // pixelSize = 6 - generate scaled bitmap
+
+     }
+         */
     }
-}
+
 }

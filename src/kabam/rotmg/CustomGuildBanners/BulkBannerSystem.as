@@ -21,6 +21,8 @@ public class BulkBannerSystem {
     private static var _cacheDirectory:File;
     private static const CACHE_FOLDER:String = "guildBanners";
     private static const MANIFEST_FILE:String = "bannerManifest.json";
+    // Add this line after your other static variables
+    private static var _hexCache:Object = {};
 
     /**
      * Call this at login to sync all banners
@@ -222,6 +224,7 @@ public class BulkBannerSystem {
      * Download the next banner in queue
      */
     private static function downloadNextBanner():void {
+        trace("DOWNLOAD ATTEMPT: Guild " + guildId);
         if (_downloadQueue.length == 0) {
             _downloading = false;
             finishLoginSync(true);
@@ -233,6 +236,7 @@ public class BulkBannerSystem {
 
         trace("BulkBannerSystem: Downloading banner for guild " + guildId +
                 " (" + (_downloadQueue.length + 1) + " remaining)");
+
 
         var authData:Object = getAuthenticationData();
         var requestData:Object = {
@@ -261,6 +265,7 @@ public class BulkBannerSystem {
      */
     private static function handleBannerDownload(success:Boolean, data:String, bannerInfo:Object):void {
         var guildId:int = bannerInfo.guildId;
+        trace("DOWNLOAD RESULT: " + success + " for guild " + guildId);
 
         if (!success || !data) {
             trace("BulkBannerSystem: Failed to download banner for guild " + guildId);
@@ -286,7 +291,7 @@ public class BulkBannerSystem {
                 };
 
                 trace("BulkBannerSystem: Saved banner for guild " + guildId);
-
+                _hexCache[guildId] = response.bannerData;
             } else {
                 trace("BulkBannerSystem: Server error for guild " + guildId + ": " +
                         (response.message || "Unknown error"));
@@ -324,30 +329,7 @@ public class BulkBannerSystem {
     /**
      * Get a banner (instant - from local files only)
      */
-    public static function getBanner(guildId:int, pixelSize:int = 16):Shape {
-        initCacheDirectory();
-
-        var bannerFile:File = _cacheDirectory.resolvePath(guildId + ".banner");
-
-        if (!bannerFile.exists) {
-            trace("BulkBannerSystem: No banner file for guild " + guildId);
-            return null;
-        }
-
-        try {
-            var fileStream:FileStream = new FileStream();
-            fileStream.open(bannerFile, FileMode.READ);
-            var hexData:String = fileStream.readUTFBytes(fileStream.bytesAvailable);
-            fileStream.close();
-
-            // Return vector shape for perfect scaling
-            return ClientBannerRendering.renderBannerFromHex(hexData, pixelSize);
-
-        } catch (error:Error) {
-            trace("BulkBannerSystem: Error loading banner " + guildId + " - " + error.message);
-            return null;
-        }
-    }
+    /*
 
     /**
      * Check if banner exists locally
@@ -410,9 +392,15 @@ public class BulkBannerSystem {
         };
     }
     public static function getHexData(guildId:int):String {
-        initCacheDirectory();
+        // Check memory cache first
+        if (_hexCache[guildId]) {
+            return _hexCache[guildId];
+        }
 
+        // Try reading from file
+        initCacheDirectory();
         var bannerFile:File = _cacheDirectory.resolvePath(guildId + ".banner");
+
         if (!bannerFile.exists) return null;
 
         try {
@@ -420,7 +408,11 @@ public class BulkBannerSystem {
             fileStream.open(bannerFile, FileMode.READ);
             var hexData:String = fileStream.readUTFBytes(fileStream.bytesAvailable);
             fileStream.close();
+
+            // Cache in memory for next time
+            _hexCache[guildId] = hexData;
             return hexData;
+
         } catch (error:Error) {
             trace("BulkBannerSystem: Error reading hex data for guild " + guildId + " - " + error.message);
             return null;

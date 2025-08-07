@@ -1,0 +1,27 @@
+Welcome to this opensource guild bannersystem for rotmg private servers. It was coded by Claude the AI, and prompted by
+me Shangapallia.
+
+Now, first navigation. New stuff is on the client and server side to make this work.
+Client: by going src -> kabam -> rotmg -> customguildbanners you will find a big batch of files.
+although there are other files that are created/edited. But let us begin with the batch.
+
+It can be divided into three sections: 1. the UI, 2. the Data Pipeline, 3. the Activation System.
+
+The UI: ColorPicker draws the Color Wheel of the UI. SimpleButton creates the foundations for buttons, which then
+are managed in the BannerManager. BannerManager is where everything for the UI is initalized. Of course though that
+class is initialized in Gamesprite. BannerDrawSystem is the canvas that is drawable. BannerStorage stores your banners
+you create, so when you Export/Save it gets saved to that.
+
+The Data Pipeline: AutonomousBannerSystem sends the data from BannerStorage to the server.
+The framework is that all clients will load the data on GameSprite connect (the
+game world connect). This means that the clients have the data to load the different guild-banners when needed. This can
+be preferable than the server doing the heavy-work, which is generally good practise. BulkBannerSystem retrieves and
+stores the data for future use.
+
+The Activation System: so you have two options either ClientBannerRendering, or BannerActivate. THe renderer renders a
+vector of the data on the screen, while the activate, renders it in the gameworld where a person placed a banner.
+Basically, the activation runs every time someone places down a banner, so that it gets loaded with the right data from
+the BulkBannerSystem.
+
+Then the stuff outside the batch. //815602 is the code both in the client and server of where in the files listed
+there is something edited. This will be of great help.

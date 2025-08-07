@@ -1,6 +1,13 @@
 Welcome to this opensource guild bannersystem for rotmg private servers. It was coded by Claude the AI, and prompted by
 me Shangapallia.
 
+Heads up, it is designed to be used with a banner-item, which places the banner. However the architecture is somewhat
+limited. Only people in range of the banner and in the same instance will load it on placement. As the intent is for
+the banner to be a placeable object when someone completes a raid this is enough for the purpose. The downside is
+flexibility. The second function of is to showcase the correct guild-banner for each respective guild in their guildhall.
+This is quite straightforward and should work. It might be possible to make it global, by changing the range on
+the server.
+
 Now, first navigation. New stuff is on the client and server side to make this work.
 Client: by going src -> kabam -> rotmg -> customguildbanners you will find a big batch of files.
 although there are other files that are created/edited. But let us begin with the batch.
@@ -18,10 +25,15 @@ game world connect). This means that the clients have the data to load the diffe
 be preferable than the server doing the heavy-work, which is generally good practise. BulkBannerSystem retrieves and
 stores the data for future use.
 
-The Activation System: so you have two options either ClientBannerRendering, or BannerActivate. THe renderer renders a
-vector of the data on the screen, while the activate, renders it in the gameworld where a person placed a banner.
-Basically, the activation runs every time someone places down a banner, so that it gets loaded with the right data from
-the BulkBannerSystem.
+The Activation System:BannerActivate. Banneractivate renders it in the gameworld where a person placed a banner.
+Basically, the activation runs for everyone every time someone places down a banner, so that it gets loaded with the right data from
+the BulkBannerSystem. The GuildHallBannerSystem loads the corresponding banner in a guildhall.
 
 Then the stuff outside the batch. //815602 is the code both in the client and server of where in the files listed
 there is something edited. This will be of great help.
+
+Server: the new file DbGuildBanner connects the banners to redis. And in guildcontroller we have new https posts, that
+send and get data. Player.UseItem is where the xml custom code is created
+
+Easy change help:
+

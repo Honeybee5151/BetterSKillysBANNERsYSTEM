@@ -74,6 +74,7 @@ import kabam.lib.net.api.MessageProvider;
 import kabam.lib.net.impl.Message;
 import kabam.lib.net.impl.SocketServer;
 import kabam.rotmg.CustomGuildBanners.BulkBannerSystem;
+import kabam.rotmg.CustomGuildBanners.GuildHallBannerSystem;
 import kabam.rotmg.account.core.Account;
 import kabam.rotmg.application.api.ApplicationSetup;
 import kabam.rotmg.arena.control.ImminentArenaWaveSignal;
@@ -1946,16 +1947,73 @@ public class GameServerConnection {
       pong.time_ = getTimer();
       this.serverConnection.sendMessage(pong);
    }
-
+//815602
    private function onMapInfo(mapInfo:MapInfo):void {
       this.gs_.applyMapInfo(mapInfo);
       this.rand_ = new Random(mapInfo.fp_);
       Music.load(mapInfo.music);
+
+      trace("=== ENTERING MAP ===");
+      trace("Map name: " + mapInfo.name_);
+      trace("Map display name: " + mapInfo.displayName_);
+
+      // Start polling for banner entities instead of single timer
+      if (mapInfo.name_ && mapInfo.name_.indexOf("Guild Hall ") === 0) {
+         startBannerPolling(mapInfo.name_);
+      }
+
       if (this.createCharacter_) {
          this.create();
       } else {
          this.load();
       }
+   }
+
+   /**
+    * Polls every 100ms until banner entities are found, then applies guild banners
+    */
+   //815602
+   private function startBannerPolling(mapName:String):void {
+      var pollTimer:Timer = new Timer(100, 0); // Poll every 100ms, unlimited times
+      var attempts:int = 0;
+      var maxAttempts:int = 30; // Stop after 3 seconds (30 * 100ms)
+
+      pollTimer.addEventListener(TimerEvent.TIMER, function(e:TimerEvent):void {
+         attempts++;
+         trace("Banner poll attempt " + attempts + " - checking for banner entities...");
+
+         // Check if we have a player and they're in a guild
+         if (!instance.player || !instance.player.guildName_ || instance.player.guildName_.length === 0) {
+            if (attempts < maxAttempts) return; // Keep trying if no player yet
+         }
+
+         // Check if banner entities exist
+         var gameScreen:* = instance.gs_;
+         var bannerCount:int = 0;
+
+         if (gameScreen && gameScreen.map && gameScreen.map.goDict_) {
+            for each (var entity:* in gameScreen.map.goDict_) {
+               if (entity && entity.hasOwnProperty("objectType_") && entity.objectType_ == 0x3787) {
+                  bannerCount++;
+               }
+            }
+         }
+
+         trace("Found " + bannerCount + " banner entities");
+
+         // If we found banner entities OR we've tried too many times, apply banners
+         if (bannerCount > 0 || attempts >= maxAttempts) {
+            trace("Stopping poll and applying guild hall banners...");
+            pollTimer.stop();
+            pollTimer.removeEventListener(TimerEvent.TIMER, arguments.callee);
+
+            // Apply the banners
+            GuildHallBannerSystem.onMapEntered(mapName, instance.player);
+         }
+      });
+
+      pollTimer.start();
+      trace("Started banner polling for map: " + mapName);
    }
 
    private function onPic(pic:Pic):void {

@@ -147,9 +147,9 @@ public class GuildHallBannerSystem {
                 trace("GuildHallBannerSystem: Entered guildhall for guild " + guildId + " (from map name)");
 
                 // Small delay to ensure all entities are loaded
-                setTimeout(function():void {
+
                     applyGuildHallBanners(guildId);
-                }, 500);
+
                 return;
             }
 
@@ -157,9 +157,9 @@ public class GuildHallBannerSystem {
             if (currentPlayer && currentPlayer.hasOwnProperty("guildId_") && currentPlayer.guildId_ > 0) {
                 trace("GuildHallBannerSystem: Using player's guild " + currentPlayer.guildId_ + " for banners");
 
-                setTimeout(function():void {
+
                     applyGuildHallBanners(currentPlayer.guildId_);
-                }, 500);
+
             }
 
         } catch (error:Error) {
@@ -173,32 +173,28 @@ public class GuildHallBannerSystem {
      */
     private static function extractGuildIdFromMapId(mapId:String):int {
         try {
-            // TODO: Replace with your actual guild hall detection logic
-            // Since I don't know how your guild halls are named, here are some examples:
+            trace("GuildHallBannerSystem: Trying to extract guild ID from: '" + mapId + "'");
 
-            // Option 1: If guild halls are named like "GuildHall1", "GuildHall2", etc.
+            // YOUR ACTUAL PATTERN: "Guild Hall 1", "Guild Hall 2", etc.
+            if (mapId.indexOf("Guild Hall ") === 0) {
+                var idStr:String = mapId.replace("Guild Hall ", "");
+                var guildId:int = parseInt(idStr);
+                trace("GuildHallBannerSystem: Extracted guild ID: " + guildId);
+                return guildId;
+            }
+
+            // Backup patterns in case format changes
             if (mapId.indexOf("GuildHall") === 0) {
-                var idStr:String = mapId.replace("GuildHall", "");
-                return parseInt(idStr);
-            }
-
-            // Option 2: If guild halls are just numbers like "1", "2", "3"
-            if (mapId.match(/^\d+$/)) { // Only digits
-                return parseInt(mapId);
-            }
-
-            // Option 3: If guild halls have a prefix like "guild_1", "guild_2"
-            if (mapId.indexOf("guild_") === 0) {
-                var idStr2:String = mapId.replace("guild_", "");
+                var idStr2:String = mapId.replace("GuildHall", "");
                 return parseInt(idStr2);
             }
 
-            // ADD YOUR ACTUAL PATTERN HERE
-            // Example: if your guild halls are named "MyGuildMap_123"
-            // if (mapId.indexOf("MyGuildMap_") === 0) {
-            //     var idStr3:String = mapId.replace("MyGuildMap_", "");
-            //     return parseInt(idStr3);
-            // }
+            if (mapId.indexOf("guild_") === 0) {
+                var idStr3:String = mapId.replace("guild_", "");
+                return parseInt(idStr3);
+            }
+
+            trace("GuildHallBannerSystem: No guild hall pattern matched for: " + mapId);
 
         } catch (error:Error) {
             trace("GuildHallBannerSystem: Error extracting guild ID from map " + mapId + " - " + error.message);

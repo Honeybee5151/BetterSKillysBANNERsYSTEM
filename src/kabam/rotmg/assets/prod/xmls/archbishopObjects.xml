@@ -107,6 +107,7 @@
       <ShadowSize>0</ShadowSize>
       <BlocksSight/>
    </Object>
+   <!-- 815602  -->
    <Object id="BannerObject" type="0x3787">
       <Class>GuildBanner</Class>
       <Texture>
@@ -117,6 +118,7 @@
       <Size>100</Size>
       <ShadowSize>0</ShadowSize>
    </Object>
+   <!-- 815602 -->
    <Object type="0x3788" id="BannerItem">
       <DisplayId>Guild Banner</DisplayId>
       <Description>A guild banner that can be placed to mark territory. Right-click to place.</Description>

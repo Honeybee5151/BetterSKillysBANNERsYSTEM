@@ -12,7 +12,7 @@ import com.company.assembleegameclient.parameters.Parameters;
       private const RELEASE_PORT:String = ":8080";
       private const TESTING_PORT:String = ":8089";
 
-      private const CDN_APPENGINE:String =  HTTP + "127.0.0.1" + RELEASE_PORT;
+      private const CDN_APPENGINE:String =  HTTP + "46.62.153.92" + RELEASE_PORT;
       private const CDN_APPENGINE_S:String = HTTPS + "127.0.0.1" + TESTING_PORT;
       private const TESTING_CDN_APPENGINE:String = HTTP + "127.0.0.1" + TESTING_PORT;
 

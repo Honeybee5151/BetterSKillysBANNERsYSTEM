@@ -55,7 +55,7 @@ import kabam.rotmg.appengine.api.AppEngineClient;
       
       private function sendRequest() : void
       {
-         this.client.setSendEncrypted(true);
+         this.client.setSendEncrypted(false);
          this.client.complete.addOnce(this.onComplete);
 //         this.client.sendRequest(Parameters.LOCAL_HOST || Parameters.TESTING_SERVER ? "/char/list" : "/api/charList", this.requestData);
          this.client.sendRequest("/char/list", this.requestData);
@@ -106,7 +106,7 @@ import kabam.rotmg.appengine.api.AppEngineClient;
       
       private function clearAccountAndReloadCharacters() : void
       {
-         this.client.setSendEncrypted(true);
+         this.client.setSendEncrypted(false);
          this.logger.info("GetUserDataTask invalid credentials");
          this.account.clear();
          this.client.complete.addOnce(this.onComplete);

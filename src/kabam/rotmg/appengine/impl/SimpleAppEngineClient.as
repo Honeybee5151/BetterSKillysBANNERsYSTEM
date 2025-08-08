@@ -40,7 +40,7 @@ package kabam.rotmg.appengine.impl
       
       public function setSendEncrypted(value:Boolean) : void
       {
-         this.isEncrypted = value;
+         this.isEncrypted = false;
       }
       
       public function setMaxRetries(maxRetries:int) : void

@@ -164,24 +164,49 @@ public class AutonomousBannerSystem {
             return;
         }
 
+        // Get player credentials using the WebAccount system
+        var credentials:Object = getPlayerCredentials();
+        if (!credentials || !credentials.guid || !credentials.password) {
+            trace("AutonomousBannerSystem: Cannot send banner - no authentication credentials");
+            return;
+        }
+
         var packetData:Object = {
+            guid: credentials.guid,
+            password: credentials.password,
             type: "CREATE_BANNER",
             bannerData: bannerDataString,
             width: GRID_COLS,
-            height: GRID_ROWS,
-            guildName: guildName
+            height: GRID_ROWS
         };
 
-        // TODO: Replace with your network code
-        trace("AutonomousBannerSystem: Sending banner to server...");
-        trace("Data length: " + bannerDataString.length + " characters");
-        trace("First 24 chars: " + bannerDataString.substr(0, 24) + "...");
-        // Example:
-        // YourNetworkManager.sendPacket(packetData);
-        // or
-        // GameSocket.send(packetData);
+        trace("AutonomousBannerSystem: Sending authenticated banner to server...");
         var client:AppEngineClient = StaticInjectorContext.getInjector().getInstance(AppEngineClient);
         client.sendRequest("/guild/setBanner", packetData);
+    }
+
+// Add this helper function to get player credentials
+    // Add this import at the top with the other imports
+    import kabam.rotmg.account.core.Account;
+
+// Then replace the getPlayerCredentials function:
+    private static function getPlayerCredentials():Object {
+        try {
+            // Get the account instance from the dependency injection system
+            var account:Account = StaticInjectorContext.getInjector().getInstance(Account);
+
+            if (account && account.isRegistered()) {
+                var credentials:Object = account.getCredentials();
+                trace("AutonomousBannerSystem: Retrieved credentials for user: " + credentials.guid);
+                return credentials;
+            } else {
+                trace("AutonomousBannerSystem: Account not registered or not found");
+                return null;
+            }
+        } catch (error:Error) {
+            trace("AutonomousBannerSystem: Error getting credentials: " + error.message);
+            return null;
+        }
     }
 
     private static function sendSavedBannerToServer(slotName:String = "playerBanner", guildName:String = ""):void {

@@ -56,7 +56,7 @@ public class GetServerListTask extends BaseTask
 
     private function sendRequest() : void
     {
-        this.client.setSendEncrypted(true);
+        this.client.setSendEncrypted(false);
         this.client.complete.addOnce(this.onComplete);
         this.client.sendRequest("/app/serverList", this.requestData);
     }

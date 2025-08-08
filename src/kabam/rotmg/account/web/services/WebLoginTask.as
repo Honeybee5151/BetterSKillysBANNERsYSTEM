@@ -28,7 +28,7 @@ import kabam.lib.tasks.BaseTask;
       
       override protected function startTask() : void
       {
-         this.client.setSendEncrypted(true);
+         this.client.setSendEncrypted(false);
          this.client.complete.addOnce(this.onComplete);
 
          // For Release: "/api/verifyAcc" For Local: "/account/verify"

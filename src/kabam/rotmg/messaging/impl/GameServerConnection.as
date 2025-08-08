@@ -2007,8 +2007,9 @@ public class GameServerConnection {
             pollTimer.stop();
             pollTimer.removeEventListener(TimerEvent.TIMER, arguments.callee);
 
-            // Apply the banners
+            // CHANGE: Use GuildHallBannerSystem instead of old system
             GuildHallBannerSystem.onMapEntered(mapName, instance.player);
+            trace("GameServerConnection: Called GuildHallBannerSystem for map: " + mapName);
          }
       });
 

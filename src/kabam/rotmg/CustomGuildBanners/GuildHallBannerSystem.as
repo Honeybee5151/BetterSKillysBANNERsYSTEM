@@ -138,32 +138,62 @@ public class GuildHallBannerSystem {
      * Call this method when entering a new map/room
      * Add this to your map loading or room transition code
      */
+    /**
+     * Call this method when entering a new map/room
+     * Add this to your map loading or room transition code
+     */
     public static function onMapEntered(mapId:String, currentPlayer:* = null):void {
         try {
-            // Method 1: Try to extract guild ID from map name
-            var guildId:int = extractGuildIdFromMapId(mapId);
+            trace("GuildHallBannerSystem: Entered map: '" + mapId + "'");
 
-            if (guildId > 0) {
-                trace("GuildHallBannerSystem: Entered guildhall for guild " + guildId + " (from map name)");
+            // Check if this looks like a guild hall
+            if (mapId.indexOf("Guild Hall") === 0) {
 
-                // Small delay to ensure all entities are loaded
+                // Try multiple ways to get player guild
+                var playerGuildId:int = 0;
 
-                    applyGuildHallBanners(guildId);
+                // Method 1: Check guildId_ property
+                if (currentPlayer && currentPlayer.hasOwnProperty("guildId_") && currentPlayer.guildId_ > 0) {
+                    playerGuildId = currentPlayer.guildId_;
+                    trace("DEBUG: Using player.guildId_: " + playerGuildId);
+                }
 
-                return;
-            }
+                // Method 2: Use guild name hash (like in BannerActivate)
+                if (playerGuildId <= 0 && currentPlayer && currentPlayer.guildName_ && currentPlayer.guildName_.length > 0) {
+                    playerGuildId = hashGuildName(currentPlayer.guildName_);
+                    trace("DEBUG: Using guild name hash: " + playerGuildId + " (from '" + currentPlayer.guildName_ + "')");
+                }
 
-            // Method 2: If map detection fails, use player's guild (more reliable)
-            if (currentPlayer && currentPlayer.hasOwnProperty("guildId_") && currentPlayer.guildId_ > 0) {
-                trace("GuildHallBannerSystem: Using player's guild " + currentPlayer.guildId_ + " for banners");
+                if (playerGuildId > 0) {
+                    trace("GuildHallBannerSystem: Guild hall detected, using player's guild " + playerGuildId + " for banners");
+                    applyGuildHallBanners(playerGuildId);
+                    return;
+                }
 
-
-                    applyGuildHallBanners(currentPlayer.guildId_);
-
+                // FALLBACK: Extract from map name
+                var guildIdFromMap:int = extractGuildIdFromMapId(mapId);
+                if (guildIdFromMap > 0) {
+                    trace("GuildHallBannerSystem: No player guild, using map-based guild " + guildIdFromMap);
+                    applyGuildHallBanners(guildIdFromMap);
+                    return;
+                }
             }
 
         } catch (error:Error) {
             trace("GuildHallBannerSystem: Error on map entered - " + error.message);
+        }
+    }
+
+// Add this helper function (copy from BannerActivate)
+    private static function hashGuildName(guildName:String):int {
+        try {
+            var hash:int = 0;
+            for (var i:int = 0; i < guildName.length; i++) {
+                hash = hash * 31 + guildName.charCodeAt(i);
+            }
+            return Math.abs(hash % 10000);
+        } catch (error:Error) {
+            return 1;
         }
     }
 

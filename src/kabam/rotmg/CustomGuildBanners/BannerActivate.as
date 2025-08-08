@@ -98,29 +98,52 @@ public class BannerActivate {
 
     private static function applyCustomBannerTexture(gameEntity:*, bannerData:Object):Boolean {
         try {
-            trace("BannerActivate: Creating texture for guild " + bannerData.guildId + " banner");
+            var guildId:int = bannerData.guildId;
+            trace("BannerActivate: === DEBUG BANNER APPLICATION ===");
+            trace("BannerActivate: Guild ID: " + guildId);
 
             var guildTexture:BitmapData;
 
-            // Always get fresh data from BulkBannerSystem based on guild ID
-            var guildId:int = bannerData.guildId;
+            // CHECK 1: Does BulkBannerSystem have this guild?
+            var hasBanner:Boolean = BulkBannerSystem.hasBanner(guildId);
+            trace("BannerActivate: BulkBannerSystem.hasBanner(" + guildId + "): " + hasBanner);
 
-            if (BulkBannerSystem.hasBanner(guildId)) {
+            if (hasBanner) {
+                // CHECK 2: Get the hex data
                 var hexData:String = BulkBannerSystem.getHexData(guildId);
+                trace("BannerActivate: Hex data length: " + (hexData ? hexData.length : "null"));
+
+                if (hexData) {
+                    trace("BannerActivate: Hex data preview: " + hexData.substring(0, Math.min(50, hexData.length)));
+                }
 
                 if (hexData && hexData.length > 100) {
-                    trace("BannerActivate: Rendering guild " + guildId + " banner from BulkBannerSystem (length: " + hexData.length + ")");
+                    trace("BannerActivate: Rendering banner from hex data...");
                     guildTexture = renderBannerFromHexString(hexData);
+
+                    if (guildTexture) {
+                        trace("BannerActivate: SUCCESS - Created texture " + guildTexture.width + "x" + guildTexture.height);
+                    } else {
+                        trace("BannerActivate: FAILED - renderBannerFromHexString returned null");
+                    }
                 } else {
-                    trace("BannerActivate: Guild " + guildId + " has invalid hex data in BulkBannerSystem");
+                    trace("BannerActivate: FAILED - Invalid hex data (too short or null)");
                 }
             } else {
-                trace("BannerActivate: Guild " + guildId + " has no banner in BulkBannerSystem");
+                trace("BannerActivate: FAILED - No banner data in BulkBannerSystem for guild " + guildId);
+
+                // DEBUG: Check what guilds ARE in BulkBannerSystem
+                trace("BannerActivate: Checking what guilds are available...");
+                for (var testGuildId:int = 1; testGuildId <= 10; testGuildId++) {
+                    if (BulkBannerSystem.hasBanner(testGuildId)) {
+                        trace("BannerActivate: Found banner data for guild " + testGuildId);
+                    }
+                }
             }
 
             // Use fallback if we couldn't get real data
             if (!guildTexture) {
-                trace("BannerActivate: Using fallback texture for guild " + guildId);
+                trace("BannerActivate: Using fallback texture - no valid guild banner found");
                 guildTexture = createFallbackBannerTexture();
             }
 
@@ -373,7 +396,6 @@ public class BannerActivate {
     }
 
 // Optional: Function to adjust scale factor for different needs
-
 
 
 // Optional: Function to adjust scale factor for different needs
@@ -636,6 +658,7 @@ public class BannerActivate {
 
     public function activate(player:Player, item:*):Boolean {
         try {
+            // When PLACING a banner, use the current player's guild
             var guildId:int = getPlayerGuildId(player);
             if (guildId <= 0) {
                 showMessage(player, "You must be in a guild to place banners!");
@@ -654,10 +677,45 @@ public class BannerActivate {
             return false;
         }
     }
-
     private function getPlayerGuildId(player:Player):int {
-        return 1; // TODO: Get from guild system
+        try {
+            // Get the current player from GameServerConnection
+            var gsc:GameServerConnection = GameServerConnection.instance;
+            if (gsc && gsc["player"]) {
+                var currentPlayer:Player = gsc["player"];
+
+                // Check if player has a guild name (indicates they're in a guild)
+                if (currentPlayer.guildName_ && currentPlayer.guildName_.length > 0) {
+                    // If they have a guild rank, they're definitely in a guild
+                    if (currentPlayer.guildRank_ > 0) {
+                        // Use a hash of the guild name as guild ID
+                        return hashGuildName(currentPlayer.guildName_);
+                    }
+                }
+            }
+        } catch (error:Error) {
+            trace("Error getting player guild ID: " + error.message);
+        }
+
+        return 0; // No guild
     }
+
+// Add this helper function
+    private function hashGuildName(guildName:String):int {
+        try {
+            var hash:int = 0;
+            for (var i:int = 0; i < guildName.length; i++) {
+                hash = hash * 31 + guildName.charCodeAt(i);
+            }
+            return Math.abs(hash % 10000); // Keep it reasonable
+        } catch (error:Error) {
+            trace("Error hashing guild name: " + error.message);
+            return 1; // Fallback
+        }
+
+    }
+
+
 
     private function showMessage(player:Player, message:String):void {
         trace("Message to " + player.name_ + ": " + message);

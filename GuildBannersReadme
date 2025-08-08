@@ -38,10 +38,10 @@ send and get data. Player.UseItem is where the xml custom action is so to say cr
 
 Possible bugs:
 
-For some reason when there are two loot-bags by each other only one is lootable.
+1. For some reason when there are two loot-bags by each other only one is lootable.
 
 Easy change help:
 
-If you want to change the size of the banner go to var "pixelScale:int = 5;" and change the 5 to how many pixels you
+1. If you want to change the size of the banner go to "var pixelScale:int = 5;" and change the 5 to how many pixels you
 want each so to say container pixel to be.
 

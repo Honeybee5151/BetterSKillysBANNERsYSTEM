@@ -65,6 +65,7 @@ public class MapUserInput
    private var potionInventoryModel:PotionInventoryModel;
    private var tabStripModel:TabStripModel;
    public var layers:Layers;
+   //815602
    public static var bannerSystemChecker:Boolean = false;
 
    public function MapUserInput(gs:GameSprite)
@@ -516,6 +517,7 @@ public class MapUserInput
          case Parameters.data_.partyJoinWorld:
             this.gs_.gsc_.playerText("/pjoin");
             break;
+              //815602
          case Parameters.data_.bannerSystem:
             if (!bannerSystemChecker) {
                this.gs_.bannerSystemAdd();

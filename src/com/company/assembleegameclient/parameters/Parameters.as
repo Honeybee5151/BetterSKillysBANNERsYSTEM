@@ -177,6 +177,7 @@ public class Parameters {
         setDefault("allyDamage", true);
         setDefault("noAllyNotifications", false);
         setDefault("fps", 60);
+        //815602
         setDefault("bannerSystem", KeyCodes.UNSET);
 
     }

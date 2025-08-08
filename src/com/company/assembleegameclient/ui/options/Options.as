@@ -367,6 +367,7 @@ public class Options extends Sprite
       this.addOption(new KeyMapper("switchTabs", "Switch Tabs", "This key will switch from available tabs"));
       var key:String = Capabilities.os.split(" ")[0] == "Mac"?"Command":"Ctrl";
       this.addOption(new ChoiceOption("inventorySwap",new <String>["On","Off"],[true,false],"Switch item to/from backpack.","Hold the " + key + " key and click on an item to swap it between your inventory and your backpack.",null));
+      //815602
       this.addOption(new KeyMapper("bannerSystem","Toggle BannerSystem", "This toggles whether to see the bannersystem or not"));
    }
 

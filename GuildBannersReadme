@@ -4,20 +4,21 @@ me Shangapallia.
 Heads up, it is designed to be used with a banner-item, which places the banner. However the architecture is somewhat
 limited. Only people in range of the banner and in the same instance will load it on placement. As the intent is for
 the banner to be a placeable object when someone completes a raid this is enough for the purpose. The downside is
-flexibility. The second function of is to showcase the correct guild-banner for each respective guild in their guildhall.
-This is quite straightforward and should work. It might be possible to make it global, by changing the range on
-the server.
+flexibility. The second function of is to showcase the correct guild-banner for each corresponding guild in their guildhall.
+This is quite straightforward and should work. If you want to add flexibility, you would need a framework which names
+all entities to the person joining the instance and the guild connected to them. And then calling the rendering code
+tied to the guild and entity when it is in range. Good luck though, as I cannot imagine how to do it exactly.
 
 Now, first navigation. New stuff is on the client and server side to make this work.
 Client: by going src -> kabam -> rotmg -> customguildbanners you will find a big batch of files.
-although there are other files that are created/edited. But let us begin with the batch.
+There are other files that are created/edited. But let us begin with the batch.
 
 It can be divided into three sections: 1. the UI, 2. the Data Pipeline, 3. the Activation System.
 
 The UI: ColorPicker draws the Color Wheel of the UI. SimpleButton creates the foundations for buttons, which then
-are managed in the BannerManager. BannerManager is where everything for the UI is initalized. Of course though that
-class is initialized in Gamesprite. BannerDrawSystem is the canvas that is drawable. BannerStorage stores your banners
-you create, so when you Export/Save it gets saved to that.
+are managed in the BannerManager. BannerManager is where everything for the UI is initialized. Of course though that
+constructor is initialized in Gamesprite. BannerDrawSystem is the canvas that is drawable. BannerStorage stores your
+banners you create, so when you Export/Save it gets saved to that.
 
 The Data Pipeline: AutonomousBannerSystem sends the data from BannerStorage to the server.
 The framework is that all clients will load the data on GameSprite connect (the
@@ -25,15 +26,22 @@ game world connect). This means that the clients have the data to load the diffe
 be preferable than the server doing the heavy-work, which is generally good practise. BulkBannerSystem retrieves and
 stores the data for future use.
 
-The Activation System:BannerActivate. Banneractivate renders it in the gameworld where a person placed a banner.
-Basically, the activation runs for everyone every time someone places down a banner, so that it gets loaded with the right data from
-the BulkBannerSystem. The GuildHallBannerSystem loads the corresponding banner in a guildhall.
+The Activation System: BannerActivate renders the appropriate layout in the gameworld where a person placed a banner.
+Basically, the activation runs for everyone every time someone places down a banner, so that it gets loaded
+with the right data from the BulkBannerSystem. The GuildHallBannerSystem loads the corresponding banner in a guildhall.
 
 Then the stuff outside the batch. //815602 is the code both in the client and server of where in the files listed
-there is something edited. This will be of great help.
+there is something edited/created outside of the batch. This will be of great help.
 
 Server: the new file DbGuildBanner connects the banners to redis. And in guildcontroller we have new https posts, that
-send and get data. Player.UseItem is where the xml custom code is created
+send and get data. Player.UseItem is where the xml custom action is so to say created and used.
+
+Possible bugs:
+
+For some reason when there are two loot-bags by each other only one is lootable.
 
 Easy change help:
+
+If you want to change the size of the banner go to var "pixelScale:int = 5;" and change the 5 to how many pixels you
+want each so to say container pixel to be.
 
